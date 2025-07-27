@@ -1,6 +1,9 @@
 package com.example.chargedparticles.simulation;
 
-public class SimulationParameters {
+import java.io.Serializable;
+
+public class SimulationParameters implements Serializable {
+    private static final long serialVersionUID = 1L;
 
     // UI vkloplje True / False
     private boolean enableUI;

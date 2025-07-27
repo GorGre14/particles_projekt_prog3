@@ -1,12 +1,14 @@
 package com.example.chargedparticles.simulation;
 
+import java.io.Serializable;
+
 /**
  * Enumeracija za razlicne nacine simulacije.
  */
-public enum SimulationMode {
+public enum SimulationMode implements Serializable {
     SEQUENTIAL("sequential", "Sequential simulation"),
     PARALLEL("parallel", "Parallel simulation"),
-    DISTRIBUTED("distributed", "Distributed simulation (not implemented)");
+    DISTRIBUTED("distributed", "Distributed simulation");
     
     private final String commandLineArg;
     private final String description;

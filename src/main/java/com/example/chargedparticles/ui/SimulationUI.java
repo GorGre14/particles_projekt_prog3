@@ -4,6 +4,7 @@ import com.example.chargedparticles.model.Particle;
 import com.example.chargedparticles.simulation.SimulationParameters;
 import com.example.chargedparticles.simulation.SimulationMode;
 import com.example.chargedparticles.simulation.SimulationFactory;
+import com.example.chargedparticles.simulation.DistributedSimulation;
 import com.example.chargedparticles.SimulationRunner;
 
 import javax.swing.*;
@@ -60,7 +61,7 @@ public class SimulationUI extends JPanel {
         
         // dropdown za nacin simulacije
         controlsPanel.add(new JLabel("Mode:"));
-        modeComboBox = new JComboBox<>(new SimulationMode[]{SimulationMode.SEQUENTIAL, SimulationMode.PARALLEL});
+        modeComboBox = new JComboBox<>(new SimulationMode[]{SimulationMode.SEQUENTIAL, SimulationMode.PARALLEL, SimulationMode.DISTRIBUTED});
         modeComboBox.setSelectedItem(params.getSimulationMode());
         controlsPanel.add(modeComboBox);
 
@@ -103,7 +104,19 @@ public class SimulationUI extends JPanel {
                     if (SimulationRunner.simulation != null) {
                         SimulationRunner.simulation.shutdown();
                     }
-                    SimulationRunner.simulation = SimulationFactory.createSimulation(newMode);
+                    
+                    // Za distributed simulacijo uporabi število delavskih vozlišč iz SimulationRunner
+                    if (newMode == SimulationMode.DISTRIBUTED) {
+                        SimulationRunner.simulation = SimulationFactory.createDistributedSimulation(SimulationRunner.expectedWorkers);
+                        // Inicializiraj distributed simulacijo
+                        if (SimulationRunner.simulation instanceof DistributedSimulation) {
+                            DistributedSimulation distSim = (DistributedSimulation) SimulationRunner.simulation;
+                            distSim.initialize();
+                            distSim.resetForNewSimulation();
+                        }
+                    } else {
+                        SimulationRunner.simulation = SimulationFactory.createSimulation(newMode);
+                    }
 
                     // Zaženemo simulacijo
                     SimulationRunner.restartSimulation();

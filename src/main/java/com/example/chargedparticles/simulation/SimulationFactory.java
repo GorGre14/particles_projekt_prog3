@@ -17,7 +17,8 @@ public class SimulationFactory {
             case PARALLEL:
                 return new ParallelSimulation();
             case DISTRIBUTED:
-                throw new UnsupportedOperationException("Distributed simulation not implemented yet");
+                // Uporablja privzeto število delavskih vozlišč
+                return new DistributedSimulation(2);
             default:
                 throw new IllegalArgumentException("Unknown simulation mode: " + mode);
         }
@@ -30,5 +31,14 @@ public class SimulationFactory {
      */
     public static Simulation createParallelSimulation(int numThreads) {
         return new ParallelSimulation(numThreads);
+    }
+    
+    /**
+     * Ustvari porazdeljeno simulacijo z določenim številom delavskih vozlišč.
+     * @param expectedWorkers število pričakovanih delavskih vozlišč
+     * @return instanca porazdeljene simulacije
+     */
+    public static Simulation createDistributedSimulation(int expectedWorkers) {
+        return new DistributedSimulation(expectedWorkers);
     }
 }
