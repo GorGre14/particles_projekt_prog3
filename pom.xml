@@ -60,7 +60,7 @@
                         <!-- Default configuration for running with: mvn clean javafx:run -->
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>com.example.chargedparticles/com.example.chargedparticles.HelloApplication
+                            <mainClass>com.example.chargedparticles/com.example.chargedparticles.SimulationRunner
                             </mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>
