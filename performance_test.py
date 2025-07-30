@@ -27,25 +27,25 @@ JAR_FILE = f"{PROJECT_DIR}/target/ChargedParticles-1.0-SNAPSHOT.jar"
 CLASSPATH = JAR_FILE
 MAIN_CLASS = "com.example.chargedparticles.SimulationRunner"
 
-# Test configurations - RELAXED FOR QUICK TESTING
+# Test configurations - ORIGINAL ASSIGNMENT REQUIREMENTS
 # Test 1: Fixed particles, increasing cycles
 FIXED_PARTICLES_TEST = {
-    "particles": 100,  # Reduced from 3000
-    "starting_cycles": 10,  # Reduced from 500
-    "cycle_increment": 10,  # Reduced from 500
-    "max_cycles": 50,  # Reduced from 10000
-    "runs_per_config": 2,  # Reduced from 3
-    "max_runtime_seconds": 30  # Reduced from 180
+    "particles": 3000,
+    "starting_cycles": 500,
+    "cycle_increment": 500,
+    "max_cycles": 10000,
+    "runs_per_config": 3,
+    "max_runtime_seconds": 180
 }
 
 # Test 2: Fixed cycles, increasing particles  
 FIXED_CYCLES_TEST = {
-    "cycles": 50,  # Reduced from 10000
-    "starting_particles": 50,  # Reduced from 500
-    "particle_increment": 50,  # Reduced from 500
-    "max_particles": 200,  # Reduced from 5000
-    "runs_per_config": 2,  # Reduced from 3
-    "max_runtime_seconds": 30  # Reduced from 180
+    "cycles": 10000,
+    "starting_particles": 500,
+    "particle_increment": 500,
+    "max_particles": 5000,
+    "runs_per_config": 3,
+    "max_runtime_seconds": 180
 }
 
 class PerformanceTest:
@@ -66,39 +66,44 @@ class PerformanceTest:
             sys.exit(1)
         
     def start_worker(self):
-        """Start distributed worker node"""
+        """Start 4 distributed worker nodes"""
         # First kill any existing workers
         subprocess.run(["pkill", "-f", "role worker"], capture_output=True)
         time.sleep(1)
         
-        print("Starting worker node...")
-        cmd = [JAVA_PATH, "-cp", CLASSPATH, MAIN_CLASS, "--role", "worker"]
-        self.worker_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
-                                              stderr=subprocess.PIPE, text=True)
+        print("Starting 4 worker nodes...")
+        self.worker_processes = []
         
-        # Check if worker started successfully
-        time.sleep(1)
-        if self.worker_process.poll() is not None:
-            stdout, stderr = self.worker_process.communicate()
-            print(f"Worker failed to start!")
-            print(f"STDOUT: {stdout}")
-            print(f"STDERR: {stderr}")
-            return False
+        for i in range(4):
+            cmd = [JAVA_PATH, "-cp", CLASSPATH, MAIN_CLASS, "--role", "worker"]
+            worker = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+                                    stderr=subprocess.PIPE, text=True)
+            self.worker_processes.append(worker)
             
-        print("Worker started, waiting for initialization...")
-        time.sleep(4)  # Wait a bit longer for worker to initialize
+            # Check if worker started successfully
+            time.sleep(0.5)
+            if worker.poll() is not None:
+                stdout, stderr = worker.communicate()
+                print(f"Worker {i+1} failed to start!")
+                print(f"STDOUT: {stdout}")
+                print(f"STDERR: {stderr}")
+                return False
+                
+        print("All 4 workers started, waiting for initialization...")
+        time.sleep(4)  # Wait for all workers to initialize
         return True
         
     def stop_worker(self):
-        """Stop distributed worker node"""
-        if self.worker_process:
-            print("Stopping worker node...")
-            self.worker_process.terminate()
-            try:
-                self.worker_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.worker_process.kill()
-            self.worker_process = None
+        """Stop all distributed worker nodes"""
+        if hasattr(self, 'worker_processes') and self.worker_processes:
+            print("Stopping all 4 worker nodes...")
+            for worker in self.worker_processes:
+                worker.terminate()
+                try:
+                    worker.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    worker.kill()
+            self.worker_processes = []
             
         # Additional cleanup
         subprocess.run(["pkill", "-f", "role worker"], capture_output=True)
@@ -106,12 +111,12 @@ class PerformanceTest:
     def run_simulation(self, mode: str, particles: int, cycles: int) -> float:
         """Run a single simulation and extract runtime"""
         if mode == "distributed":
-            if not self.worker_process or self.worker_process.poll() is not None:
+            if not hasattr(self, 'worker_processes') or not self.worker_processes:
                 if not self.start_worker():
-                    print("Failed to start worker, skipping distributed test")
+                    print("Failed to start workers, skipping distributed test")
                     return None
             cmd = [JAVA_PATH, "-cp", CLASSPATH, MAIN_CLASS, 
-                  "--mode", "distributed", "--role", "master", "--workers", "1",
+                  "--mode", "distributed", "--role", "master", "--workers", "4",
                   "--particles", str(particles), "--cycles", str(cycles), "--ui", "false"]
         else:
             cmd = [JAVA_PATH, "-cp", CLASSPATH, MAIN_CLASS,
@@ -119,8 +124,8 @@ class PerformanceTest:
                   "--cycles", str(cycles), "--ui", "false"]
                   
         try:
-            # Use shorter timeout for distributed mode during testing
-            timeout = 30 if mode == "distributed" else 300
+            # Use adequate timeout for distributed mode
+            timeout = 300
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
             
             if result.returncode != 0:
@@ -195,7 +200,7 @@ class PerformanceTest:
         runs = FIXED_PARTICLES_TEST["runs_per_config"]
         max_runtime = FIXED_PARTICLES_TEST["max_runtime_seconds"]
         
-        for mode in ["sequential", "parallel", "distributed"]:
+        for mode in ["distributed"]:
             print(f"\n=== Testing {mode.upper()} mode ===")
             cycles = FIXED_PARTICLES_TEST["starting_cycles"]
             
@@ -253,7 +258,7 @@ class PerformanceTest:
         runs = FIXED_CYCLES_TEST["runs_per_config"]
         max_runtime = FIXED_CYCLES_TEST["max_runtime_seconds"]
         
-        for mode in ["sequential", "parallel", "distributed"]:
+        for mode in ["distributed"]:
             print(f"\n=== Testing {mode.upper()} mode ===")
             particles = FIXED_CYCLES_TEST["starting_particles"]
             
@@ -299,38 +304,34 @@ class PerformanceTest:
                 time.sleep(2)
                 
     def save_results(self):
-        """Save results to CSV files"""
-        # Fixed Particles Test Results
+        """Append new distributed results to existing CSV files"""
+        # Fixed Particles Test Results - append only new distributed results
         fixed_particles_results = [r for r in self.results if r['test_type'] == 'Fixed_Particles']
-        with open('fixed_particles_results.csv', 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['mode', 'particles', 'cycles', 'run1_time', 'run2_time', 
-                           'run3_time', 'average_time', 'std_dev'])
-            
-            for result in fixed_particles_results:
-                times = result['run_times'] + [None] * (3 - len(result['run_times']))
-                writer.writerow([
-                    result['mode'], result['particles'], result['cycles'],
-                    times[0], times[1], times[2],
-                    result['average_time'], result['std_dev']
-                ])
+        if fixed_particles_results:
+            with open('fixed_particles_results.csv', 'a', newline='') as f:
+                writer = csv.writer(f)
+                for result in fixed_particles_results:
+                    times = result['run_times'] + [None] * (3 - len(result['run_times']))
+                    writer.writerow([
+                        result['mode'], result['particles'], result['cycles'],
+                        times[0], times[1], times[2],
+                        result['average_time'], result['std_dev']
+                    ])
                 
-        # Fixed Cycles Test Results  
+        # Fixed Cycles Test Results - append only new distributed results
         fixed_cycles_results = [r for r in self.results if r['test_type'] == 'Fixed_Cycles']
-        with open('fixed_cycles_results.csv', 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['mode', 'particles', 'cycles', 'run1_time', 'run2_time', 
-                           'run3_time', 'average_time', 'std_dev'])
-            
-            for result in fixed_cycles_results:
-                times = result['run_times'] + [None] * (3 - len(result['run_times']))
-                writer.writerow([
-                    result['mode'], result['particles'], result['cycles'],
-                    times[0], times[1], times[2],
-                    result['average_time'], result['std_dev']
-                ])
+        if fixed_cycles_results:
+            with open('fixed_cycles_results.csv', 'a', newline='') as f:
+                writer = csv.writer(f)
+                for result in fixed_cycles_results:
+                    times = result['run_times'] + [None] * (3 - len(result['run_times']))
+                    writer.writerow([
+                        result['mode'], result['particles'], result['cycles'],
+                        times[0], times[1], times[2],
+                        result['average_time'], result['std_dev']
+                    ])
                 
-        print(f"\nResults saved to:")
+        print(f"\nNew distributed results appended to:")
         print(f"- fixed_particles_results.csv ({len(fixed_particles_results)} records)")
         print(f"- fixed_cycles_results.csv ({len(fixed_cycles_results)} records)")
         
@@ -355,7 +356,7 @@ class PerformanceTest:
         print(f"  - Max runtime: {FIXED_CYCLES_TEST['max_runtime_seconds']}s")
         print(f"\nRuns per configuration: {FIXED_PARTICLES_TEST['runs_per_config']}")
         print(f"Timeout per simulation: 300 seconds")
-        print("Testing modes: Sequential, Parallel, Distributed")
+        print("Testing mode: Distributed only (Sequential and Parallel already completed)")
         print("=" * 50)
         
         try:
