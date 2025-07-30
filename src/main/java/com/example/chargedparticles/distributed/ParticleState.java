@@ -3,7 +3,7 @@ package com.example.chargedparticles.distributed;
 import java.io.Serializable;
 
 /**
- * Serializabilna predstava delca za omrežno komunikacijo.
+ * Serializirana predstava delca za omrežno komunikacijo.
  * Vsebuje vse potrebne podatke o delcu, ki jih je treba prenesti med vozlišči.
  */
 public class ParticleState implements Serializable {

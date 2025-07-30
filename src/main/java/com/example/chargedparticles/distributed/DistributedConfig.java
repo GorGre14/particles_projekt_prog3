@@ -33,7 +33,7 @@ public class DistributedConfig {
     }
     
     /**
-     * Preveri, ali je število delav smiselno za dano število delcev.
+     * Preveri, ali je število delavcev smiselno za dano število delcev.
      * @param numParticles Število delcev
      * @param numWorkers Število delavskih vozlišč
      * @return true če je razporeditev smiselna
@@ -46,7 +46,7 @@ public class DistributedConfig {
     }
     
     /**
-     * Izračuna optimalno število delav za dano število delcev.
+     * Izračuna optimalno število delavcev za dano število delcev.
      * @param numParticles Število delcev
      * @return Priporočeno število delavskih vozlišč
      */
