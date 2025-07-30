@@ -15,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.io.File;
 
 /**
  * Koordinator za master vozlišče v porazdeljeni simulaciji.
@@ -74,7 +75,7 @@ public class MasterCoordinator {
             }
             
             if (workers.size() == 0) {
-                System.err.println("Nobeno delavsko vozlišče ni bilo najdeno!");
+                System.out.println("Nobeno delavsko vozlišče ni bilo najdeno. Za porazdeljeni način zaženite delavce v terminalu - preverite distributed readme. Preklapljam na sekvenčni način.");
                 return false;
             }
             
@@ -376,5 +377,181 @@ public class MasterCoordinator {
      */
     public void resetForNewSimulation() {
         workersInitialized = false;
+    }
+    
+    /**
+     * Zagne lokalna delavska vozlišča, če jih ne najde v omrežju.
+     * @return true če je uspešno zagnal vozlišča
+     */
+    private boolean startLocalWorkers() {
+        try {
+            System.out.println("Zaganjam " + Math.min(expectedWorkers, 2) + " lokalnih delavskih vozlišč...");
+            
+            // Določi pot do JAR datoteke
+            String jarPath = getJarPath();
+            if (jarPath == null) {
+                System.err.println("Ne morem najti JAR datoteke za zagon lokalnih vozlišč");
+                return false;
+            }
+            
+            // Zaženi lokalna vozlišča
+            int workersToStart = Math.min(expectedWorkers, 2); // Maksimalno 2 lokalna vozlišča
+            ProcessBuilder[] builders = new ProcessBuilder[workersToStart];
+            Process[] processes = new Process[workersToStart];
+            
+            for (int i = 0; i < workersToStart; i++) {
+                builders[i] = new ProcessBuilder(
+                    "java", "-cp", jarPath,
+                    "com.example.chargedparticles.SimulationRunner",
+                    "--role", "worker"
+                );
+                builders[i].redirectErrorStream(true);
+                
+                processes[i] = builders[i].start();
+                System.out.println("Zagnano lokalno delovno vozlišče " + (i + 1));
+            }
+            
+            // Počakaj, da se vozlišča zaženejo
+            Thread.sleep(3000);
+            
+            // Preveri, ali so procesi še vedno živi
+            boolean allAlive = true;
+            for (int i = 0; i < workersToStart; i++) {
+                if (!processes[i].isAlive()) {
+                    System.err.println("Lokalno delovno vozlišče " + (i + 1) + " se je prekinilo");
+                    allAlive = false;
+                }
+            }
+            
+            return allAlive;
+            
+        } catch (Exception e) {
+            System.err.println("Napaka pri zaganjanju lokalnih vozlišč: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Ponovno poskusi inicializacijo po zagonu lokalnih vozlišč.
+     * @return true če je inicializacija uspešna
+     */
+    private boolean initializeMasterAfterLocalStart() {
+        try {
+            System.out.println("Ponovno iščem delavska vozlišča po zagonu lokalnih...");
+            
+            // Počisti prejšnje povezave
+            workers.clear();
+            
+            // Pridobi RMI registry
+            Registry registry = LocateRegistry.getRegistry(
+                DistributedConfig.RMI_REGISTRY_HOST,
+                DistributedConfig.RMI_REGISTRY_PORT
+            );
+            
+            // Poizkusi najti vozlišča z krajšim timeoutom
+            long startTime = System.currentTimeMillis();
+            int maxAttempts = 10; // Maksimalno 10 poskusov
+            int attempts = 0;
+            
+            while (workers.size() == 0 && attempts < maxAttempts) {
+                for (int i = 0; i < DistributedConfig.MAX_WORKERS; i++) {
+                    String serviceName = DistributedConfig.getWorkerServiceName(i);
+                    try {
+                        WorkerNode worker = (WorkerNode) registry.lookup(serviceName);
+                        if (worker.isAlive() && !workers.contains(worker)) {
+                            workers.add(worker);
+                            System.out.println("Najdeno lokalno delavsko vozlišče: " + serviceName);
+                        }
+                    } catch (NotBoundException e) {
+                        // Vozlišče še ni registrirano
+                    }
+                }
+                
+                if (workers.size() == 0) {
+                    Thread.sleep(500); // Počakaj pol sekunde
+                    attempts++;
+                }
+            }
+            
+            if (workers.size() > 0) {
+                System.out.println("Uspešno povezan z " + workers.size() + " lokalnimi vozlišči");
+                initialized = true;
+                return true;
+            } else {
+                System.err.println("Lokalna vozlišča se niso uspešno registrirala");
+                return false;
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Napaka pri ponovni inicializaciji: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Dobi pot do trenutne JAR datoteke.
+     * @return pot do JAR datoteke ali null če je ni mogoče določiti
+     */
+    private String getJarPath() {
+        try {
+            // 1. Poskusi z obstoječim class path (če je že JAR)
+            String classPath = System.getProperty("java.class.path");
+            System.out.println("Preverjam class path: " + classPath);
+            
+            if (classPath.endsWith(".jar")) {
+                File jarFile = new File(classPath);
+                if (jarFile.exists()) {
+                    System.out.println("Našel JAR v class path: " + jarFile.getAbsolutePath());
+                    return jarFile.getAbsolutePath();
+                }
+            }
+            
+            // 2. Poskusi z target/classes (development mode)
+            File classesDir = new File("target/classes");
+            if (classesDir.exists()) {
+                System.out.println("Našel target/classes direktorij: " + classesDir.getAbsolutePath());
+                return classesDir.getAbsolutePath();
+            }
+            
+            // 3. Poskusi z JAR datoteko v target/
+            File targetDir = new File("target");
+            if (targetDir.exists()) {
+                File[] jarFiles = targetDir.listFiles((dir, name) -> 
+                    name.endsWith(".jar") && !name.contains("original"));
+                if (jarFiles != null && jarFiles.length > 0) {
+                    System.out.println("Našel JAR v target/: " + jarFiles[0].getAbsolutePath());
+                    return jarFiles[0].getAbsolutePath();
+                }
+            }
+            
+            // 4. Poskusi s trenutno lokacijo programa
+            try {
+                String location = MasterCoordinator.class.getProtectionDomain()
+                    .getCodeSource().getLocation().getPath();
+                File locationFile = new File(location);
+                if (locationFile.exists()) {
+                    if (locationFile.isDirectory()) {
+                        // Če je to direktorij, poizkusi najti parent s target/classes
+                        File parentDir = locationFile.getParentFile();
+                        if (parentDir != null && parentDir.getName().equals("classes")) {
+                            System.out.println("Našel classes direktorij iz code source: " + parentDir.getAbsolutePath());
+                            return parentDir.getAbsolutePath();
+                        }
+                    } else if (location.endsWith(".jar")) {
+                        System.out.println("Našel JAR iz code source: " + locationFile.getAbsolutePath());
+                        return locationFile.getAbsolutePath();
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Napaka pri preverjanju code source: " + e.getMessage());
+            }
+            
+            System.err.println("Ne morem najti veljavne JAR datoteke ali classes direktorija");
+            return null;
+            
+        } catch (Exception e) {
+            System.err.println("Napaka pri iskanju JAR poti: " + e.getMessage());
+            return null;
+        }
     }
 }
