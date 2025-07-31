@@ -42,14 +42,50 @@ print_error() {
 
 # Function to check if Java is available
 check_java() {
-    export JAVA_HOME=/opt/homebrew/Cellar/openjdk/24.0.1/libexec/openjdk.jdk/Contents/Home
-    if [ ! -d "$JAVA_HOME" ]; then
-        print_error "Java is not installed at $JAVA_HOME"
+    # Try to find Java in various common locations
+    JAVA_CANDIDATES=(
+        "$JAVA_HOME/bin/java"                                                    # User-defined JAVA_HOME
+        "/opt/homebrew/Cellar/openjdk/*/libexec/openjdk.jdk/Contents/Home/bin/java"  # macOS Homebrew
+        "/usr/lib/jvm/default-java/bin/java"                                     # Ubuntu/Debian default
+        "/usr/lib/jvm/java-*/bin/java"                                          # Generic Linux JVM
+        "/usr/bin/java"                                                         # System Java
+        "$(which java 2>/dev/null)"                                            # Java in PATH
+    )
+    
+    JAVA_EXEC=""
+    
+    # Check each candidate
+    for candidate in "${JAVA_CANDIDATES[@]}"; do
+        if [ -n "$candidate" ]; then
+            # Handle wildcards
+            if [[ "$candidate" == *"*"* ]]; then
+                for expanded in $candidate; do
+                    if [ -x "$expanded" ]; then
+                        JAVA_EXEC="$expanded"
+                        break 2
+                    fi
+                done
+            elif [ -x "$candidate" ]; then
+                JAVA_EXEC="$candidate"
+                break
+            fi
+        fi
+    done
+    
+    if [ -z "$JAVA_EXEC" ]; then
+        print_error "Java not found. Please install Java 11+ or set JAVA_HOME"
+        print_error "Try: sudo apt install openjdk-11-jdk (Ubuntu/Debian)"
+        print_error "Or: brew install openjdk (macOS)"
         exit 1
     fi
     
-    java_version=$($JAVA_HOME/bin/java -version 2>&1 | head -1)
+    # Set JAVA_HOME based on found executable and make JAVA_EXEC global
+    export JAVA_HOME="$(dirname "$(dirname "$JAVA_EXEC")")"
+    export JAVA_EXEC="$JAVA_EXEC"
+    
+    java_version=$("$JAVA_EXEC" -version 2>&1 | head -1)
     print_info "Using Java: $java_version"
+    print_info "Java Home: $JAVA_HOME"
 }
 
 # Function to build the project if needed
@@ -59,7 +95,6 @@ check_build() {
         if command -v mvn &> /dev/null; then
             print_info "Building with Maven..."
             cd "$SCRIPT_DIR"
-            export JAVA_HOME=/opt/homebrew/Cellar/openjdk/24.0.1/libexec/openjdk.jdk/Contents/Home
             mvn clean package -q
             if [ $? -ne 0 ]; then
                 print_error "Build failed"
@@ -75,12 +110,35 @@ check_build() {
 
 # Function to check if RMI registry is running
 check_registry() {
-    netstat -tln 2>/dev/null | grep -q ":1099 " || lsof -i :1099 &>/dev/null
-    if [ $? -ne 0 ]; then
+    # Try multiple ways to check if port 1099 is in use
+    port_in_use=false
+    
+    # Method 1: netstat (Linux/macOS)
+    if command -v netstat >/dev/null 2>&1; then
+        if netstat -tln 2>/dev/null | grep -q ":1099 "; then
+            port_in_use=true
+        fi
+    fi
+    
+    # Method 2: lsof (macOS/Linux)
+    if [ "$port_in_use" = false ] && command -v lsof >/dev/null 2>&1; then
+        if lsof -i :1099 >/dev/null 2>&1; then
+            port_in_use=true
+        fi
+    fi
+    
+    # Method 3: ss (modern Linux)
+    if [ "$port_in_use" = false ] && command -v ss >/dev/null 2>&1; then
+        if ss -tln 2>/dev/null | grep -q ":1099 "; then
+            port_in_use=true
+        fi
+    fi
+    
+    if [ "$port_in_use" = true ]; then
+        print_info "RMI registry is running on port 1099"
+    else
         print_warning "RMI registry (port 1099) doesn't seem to be running"
         print_info "It will be created automatically when the first worker starts"
-    else
-        print_info "RMI registry is running on port 1099"
     fi
 }
 
@@ -91,8 +149,7 @@ start_worker() {
     print_info "Press Ctrl+C to shutdown"
     echo
     
-    export JAVA_HOME=/opt/homebrew/Cellar/openjdk/24.0.1/libexec/openjdk.jdk/Contents/Home
-    $JAVA_HOME/bin/java -cp "$JAR_FILE" "$MAIN_CLASS" --role worker
+    "$JAVA_EXEC" -cp "$JAR_FILE" "$MAIN_CLASS" --role worker
 }
 
 # Function to start master node
@@ -104,8 +161,7 @@ start_master() {
     print_warning "Make sure $NUM_WORKERS worker nodes are running before starting simulation"
     echo
     
-    export JAVA_HOME=/opt/homebrew/Cellar/openjdk/24.0.1/libexec/openjdk.jdk/Contents/Home
-    $JAVA_HOME/bin/java -cp "$JAR_FILE" "$MAIN_CLASS" \
+    "$JAVA_EXEC" -cp "$JAR_FILE" "$MAIN_CLASS" \
         --mode distributed \
         --role master \
         --workers "$NUM_WORKERS" \
