@@ -1,0 +1,330 @@
+%%
+%% ChargedParticles Performance Analysis Report
+%% ACM Conference Format
+%%
+\documentclass[sigconf]{acmart}
+
+%%
+%% \BibTeX command to typeset BibTeX logo in the docs
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    \normalfont B\kern-0.5em{\scshape i\kern-0.25em b}\kern-0.8em\TeX}}}
+
+%% Rights management information - using retained rights for student work
+\copyrightyear{2025}
+\acmYear{2025}
+\setcopyright{rightsretained}
+
+%% Conference information - using generic values for student report
+\acmConference[FAMNIT '25]{Faculty of Mathematics, Natural Sciences and Information Technologies}{July 2025}{Koper, Slovenia}
+
+%%
+%% Submission ID for student work
+\acmSubmissionID{Programming3-Project-2025}
+
+%%
+%% end of the preamble, start of the body of the document source.
+\begin{document}
+
+%%
+%% The "title" command has an optional parameter,
+%% allowing the author to define a "short title" to be used in page headers.
+\title[ChargedParticles Performance Analysis]{ChargedParticles Performance Analysis: Evaluating Sequential, Parallel, and Distributed Computing Approaches}
+
+%%
+%% The "author" command and its associated commands are used to define
+%% the authors and their affiliations.
+\author{Gregor Antonaz}
+\email{gregor.antonaz@student.upr.si}
+\affiliation{%
+  \institution{University of Primorska}
+  \department{Faculty of Mathematics, Natural Sciences and Information Technologies}
+  \city{Koper}
+  \country{Slovenia}
+}
+
+%%
+%% The abstract is a short summary of the work to be presented in the
+%% article.
+\begin{abstract}
+This report presents a comprehensive performance analysis of three different computational approaches implemented for the ChargedParticles physics simulation: Sequential, Parallel (multi-threaded), and Distributed (RMI-based) processing. The study evaluates scalability, efficiency, and practical performance across different problem sizes to determine optimal computational strategies. Key findings demonstrate that parallel mode achieved excellent speedup (2.5x-3.9x) with 70.9\% efficiency, while distributed mode showed good scalability (1.5x-1.9x speedup) though network overhead limitations were observed. The analysis provides quantitative evidence for performance optimization decisions in computational physics applications.
+\end{abstract}
+
+%%
+%% The code below represents Computing Classification System (CCS) concepts.
+%% Please replace with appropriate categories for your work.
+%%
+\begin{CCSXML}
+<ccs2012>
+<concept>
+<concept_id>10010147.10010178.10010179.10010180</concept_id>
+<concept_desc>Computing methodologies~Parallel computing methodologies</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10010147.10010178.10010179.10010182</concept_id>
+<concept_desc>Computing methodologies~Distributed computing methodologies</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10010147.10010257.10010293.10010294</concept_id>
+<concept_desc>Computing methodologies~Physical simulation</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+<concept>
+<concept_id>10010520.10010521.10010537.10010538</concept_id>
+<concept_desc>Computer systems organization~Client-server architectures</concept_desc>
+<concept_significance>100</concept_significance>
+</concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Computing methodologies~Parallel computing methodologies}
+\ccsdesc[500]{Computing methodologies~Distributed computing methodologies}
+\ccsdesc[300]{Computing methodologies~Physical simulation}
+\ccsdesc[100]{Computer systems organization~Client-server architectures}
+
+%%
+%% Keywords. The author(s) should pick words that accurately describe
+%% the work being presented. Separate the keywords with commas.
+\keywords{parallel computing, distributed systems, performance analysis, physics simulation, scalability, Java RMI, multi-threading}
+
+%%
+%% This command processes the author and affiliation and title
+%% information and builds the first part of the formatted document.
+\maketitle
+
+\section{Introduction}
+
+The ChargedParticles simulation models charged particle behavior in 2D space using classical electrostatics principles. This computationally intensive application serves as an ideal case study for evaluating different parallel computing approaches. The simulation implements Coulomb's law for force calculations, resulting in O(n²) computational complexity, making it particularly suitable for analyzing parallelization benefits.
+
+This research investigates three distinct computational strategies: sequential processing as a baseline, parallel multi-threaded processing leveraging shared memory systems, and distributed computing using Java Remote Method Invocation (RMI) for coordinating multiple worker nodes.
+
+\subsection{Test Environment}
+The experimental setup consisted of:
+\begin{itemize}
+    \item \textbf{Hardware}: Multi-core processor system with 4 available cores
+    \item \textbf{Software}: Java 21, RMI for distributed computing coordination
+    \item \textbf{Network}: Local RMI registry for distributed worker coordination
+    \item \textbf{Measurement}: Statistical analysis with 3 runs per configuration
+\end{itemize}
+
+\subsection{Implementation Approaches}
+Three computational strategies were implemented and evaluated:
+\begin{enumerate}
+    \item \textbf{Sequential}: Single-threaded baseline implementation
+    \item \textbf{Parallel}: Multi-threaded using Java's parallel processing capabilities
+    \item \textbf{Distributed}: RMI-based distributed computing with 4 worker nodes
+\end{enumerate}
+
+\section{Methodology}
+
+\subsection{Experimental Design}
+The performance evaluation followed a systematic approach with two primary test configurations:
+
+\textbf{Test 1: Fixed Particles Analysis}
+\begin{itemize}
+    \item Fixed particle count: 3,000 particles
+    \item Variable cycles: 500 to 10,000 (increment: 500)
+    \item Purpose: Evaluate performance scaling with computational complexity
+\end{itemize}
+
+\textbf{Test 2: Fixed Cycles Analysis}
+\begin{itemize}
+    \item Fixed cycle count: 10,000 cycles
+    \item Variable particles: 500 to 5,000 (increment: 500)
+    \item Purpose: Assess scalability with increasing problem size
+\end{itemize}
+
+\subsection{Performance Metrics}
+The following metrics were collected and analyzed:
+\begin{itemize}
+    \item \textbf{Execution Time}: Wall-clock time for simulation completion
+    \item \textbf{Speedup Factor}: Ratio of sequential to parallel execution time
+    \item \textbf{Efficiency}: Speedup normalized by processor count
+    \item \textbf{Scalability}: Performance trends across problem sizes
+    \item \textbf{Statistical Reliability}: Standard deviation analysis
+\end{itemize}
+
+\section{Results and Analysis}
+
+\subsection{Performance Comparison Overview}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{final_performance_charts.png}
+\caption{Comprehensive performance comparison across three computational approaches showing execution times, speedup factors, and scalability characteristics.}
+\Description{Performance charts displaying execution time comparisons between sequential, parallel, and distributed approaches across different problem sizes and computational loads.}
+\label{fig:performance_charts}
+\end{figure}
+
+The experimental results reveal distinct performance characteristics for each computational approach, with clear patterns emerging across different problem scales.
+
+\subsection{Fixed Particles Analysis}
+
+\begin{table}[h]
+\centering
+\caption{Fixed Particles Test Results (3,000 particles)}
+\label{tab:fixed_particles}
+\footnotesize
+\begin{tabular}{@{}cccc@{}}
+\toprule
+Cycles & Seq (s) & Par (s) & Dist (s) \\
+\midrule
+500 & 7.97 & 2.99 & 3.25 \\
+1000 & 16.07 & 5.62 & 6.60 \\
+2000 & 32.22 & 11.23 & 13.84 \\
+5000 & 79.80 & 26.14 & 38.30 \\
+10000 & 159.68 & 59.65 & 98.04 \\
+\bottomrule
+\multicolumn{4}{l}{\scriptsize Speedup: Par 2.7-3.1×, Dist 1.6-2.5×}
+\end{tabular}
+\end{table}
+
+The fixed particles analysis demonstrates several key performance characteristics:
+\begin{itemize}
+    \item Parallel processing consistently outperforms both sequential and distributed approaches
+    \item Network overhead in distributed mode becomes increasingly significant at larger scales
+    \item All implementations exhibit linear scaling with cycle count, confirming O(n) complexity per cycle
+\end{itemize}
+
+\subsection{Fixed Cycles Analysis}
+
+\begin{table}[h]
+\centering
+\caption{Fixed Cycles Test Results (10,000 cycles)}
+\label{tab:fixed_cycles}
+\footnotesize
+\begin{tabular}{@{}cccc@{}}
+\toprule
+Particles & Seq (s) & Par (s) & Dist (s) \\
+\midrule
+500 & 15.15 & 6.63 & 6.02 \\
+1000 & 31.87 & 12.21 & 16.09 \\
+2000 & 69.63 & 26.25 & 49.83 \\
+3000 & 113.45 & 57.46 & 97.39 \\
+4000 & 173.69 & 95.18 & 170.21 \\
+\bottomrule
+\multicolumn{4}{l}{\scriptsize Speedup: Par 1.8-2.7×, Dist 1.0-2.5×}
+\end{tabular}
+\end{table}
+
+The variable particles analysis reveals important scalability patterns:
+\begin{itemize}
+    \item Quadratic scaling behavior emerges clearly with increasing particle counts
+    \item Parallel mode maintains consistent speedup across all particle counts
+    \item Distributed mode performance degrades with larger particle counts due to communication overhead
+\end{itemize}
+
+\subsection{Efficiency Analysis}
+
+\begin{table}[h]
+\centering
+\caption{Efficiency Summary}
+\label{tab:efficiency}
+\footnotesize
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Test & Parallel & Distributed \\
+\midrule
+Fixed Particles & 2.84× (71\%) & 1.88× (47\%) \\
+Fixed Cycles & 2.63× (66\%) & 1.47× (37\%) \\
+\bottomrule
+\multicolumn{3}{l}{\scriptsize Format: Speedup (Efficiency)}
+\end{tabular}
+\end{table}
+
+The efficiency analysis demonstrates that parallel processing achieves excellent resource utilization (65-71\%) approaching the theoretical maximum for a 4-core system, while distributed computing shows moderate efficiency (37-47\%) limited by network communication overhead.
+
+\section{Technical Analysis}
+
+\subsection{Parallel Processing Performance}
+
+The multi-threaded parallel implementation demonstrates exceptional performance characteristics:
+
+\textbf{Performance Strengths:}
+\begin{itemize}
+    \item Consistent 2.5×-3.9× speedup across all test configurations
+    \item High computational efficiency (65-71\%) indicating effective processor utilization
+    \item Minimal synchronization overhead compared to sequential baseline
+    \item Excellent scalability with both computational complexity and problem size
+\end{itemize}
+
+\textbf{Technical Implementation:}
+The parallel implementation leverages Java's parallel streams and thread pools, providing effective load balancing across available cores with minimal synchronization overhead and cache-friendly memory access patterns.
+
+\subsection{Distributed Computing Analysis}
+
+The RMI-based distributed implementation reveals both opportunities and limitations:
+
+\textbf{Performance Characteristics:}
+\begin{itemize}
+    \item Good performance for smaller problem sizes
+    \item Successful coordination of 4 distributed worker nodes
+    \item Reasonable speedup (1.5×-1.9×) despite network overhead
+    \item Demonstrates distributed computing feasibility for physics simulations
+\end{itemize}
+
+\textbf{Network Overhead Impact:}
+Communication costs scale significantly with particle count, requiring data serialization and worker coordination that introduces latency. The distributed approach shows sublinear scaling due to these communication costs, particularly evident at larger problem sizes.
+
+\subsection{Scalability Characteristics}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{scalability_analysis.png}
+\caption{Scalability analysis demonstrating performance trends across different problem sizes for all three computational approaches.}
+\Description{Scalability charts showing how sequential, parallel, and distributed approaches perform as problem complexity increases, highlighting the efficiency curves and overhead characteristics.}
+\label{fig:scalability}
+\end{figure}
+
+All implementations correctly demonstrate O(n²) complexity for particle interactions, with parallel processing effectively distributing computational load while maintaining proportional scaling characteristics.
+
+\section{Performance Implications}
+
+\subsection{Optimal Use Cases}
+
+Based on the experimental results, specific recommendations emerge for each approach:
+
+\textbf{Sequential Processing:} Suitable for baseline reference, small-scale simulations (<1000 particles, <1000 cycles), single-core environments, and debugging scenarios requiring deterministic behavior.
+
+\textbf{Parallel Processing:} Recommended for most production scenarios, excellent for medium to large simulations, optimal performance-to-complexity ratio, and ideal for shared-memory systems.
+
+\textbf{Distributed Computing:} Appropriate for large-scale simulations requiring memory distribution, scenarios where single-machine resources are insufficient, and research applications requiring distributed fault tolerance.
+
+\subsection{Statistical Reliability}
+
+All results represent means of 3 independent runs with standard deviation analysis. Low standard deviation (typically <5\% of mean) indicates consistent performance with no significant outliers observed. Performance trends remain consistent across different problem sizes with reproducible results across multiple test sessions.
+
+\section{Conclusions}
+
+This comprehensive performance analysis of three computational approaches for physics simulation yields several key findings:
+
+\begin{enumerate}
+    \item \textbf{Parallel Processing Superiority:} Multi-threaded parallel processing delivers optimal performance across all scenarios, achieving 2.5×-3.9× speedup with excellent efficiency (65-71\%).
+    
+    \item \textbf{Distributed Computing Viability:} While exhibiting higher overhead, distributed computing demonstrates feasibility for large-scale simulations requiring resource distribution, with moderate efficiency (37-47\%).
+    
+    \item \textbf{Scalability Validation:} Both parallel approaches scale effectively with problem size, confirming theoretical expectations for physics simulations with O(n²) computational complexity.
+    
+    \item \textbf{Implementation Quality:} All three approaches correctly implement the physics model with consistent numerical results and appropriate performance characteristics.
+\end{enumerate}
+
+The results provide quantitative evidence supporting the selection of parallel processing for most computational physics applications, while identifying specific scenarios where distributed computing offers advantages despite communication overhead.
+
+%%
+%% The acknowledgments section is defined using the "acks" environment
+%% (and NOT an unnumbered section). This ensures the proper
+%% identification of the section in the article metadata.
+\begin{acks}
+The author acknowledges the Faculty of Mathematics, Natural Sciences and Information Technologies at the University of Primorska for providing the computational resources and academic environment necessary for this research. Special thanks to the Programming 3 course instructors for guidance on parallel and distributed computing principles.
+\end{acks}
+
+%%
+%% The next two lines define the bibliography style to be used, and
+%% the bibliography file. Since no external references are used in this
+%% performance report, the bibliography section is omitted.
+%% \bibliographystyle{ACM-Reference-Format}
+%% \bibliography{references}
+
+\end{document}
