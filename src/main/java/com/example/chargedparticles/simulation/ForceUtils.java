@@ -66,22 +66,22 @@ public class ForceUtils {
         // Preverjanje posameznih mej in uporaba odbojnih sil, ce je delec preblizu
 
         if (p.getX() < params.getMinX() + buffer) {
-            double dist = Math.max(1e-12, p.getX() - params.getMinX());
+            double dist = Math.max(1e-12, Math.abs(p.getX() - params.getMinX()));
             fx += repelFactor / (dist * dist);
         }
         // desni rob
         if (p.getX() > params.getMaxX() - buffer) {
-            double dist = Math.max(1e-12, params.getMaxX() - p.getX());
+            double dist = Math.max(1e-12, Math.abs(params.getMaxX() - p.getX()));
             fx -= repelFactor / (dist * dist);
         }
         // zgornji
         if (p.getY() < params.getMinY() + buffer) {
-            double dist = Math.max(1e-12, p.getY() - params.getMinY());
+            double dist = Math.max(1e-12, Math.abs(p.getY() - params.getMinY()));
             fy += repelFactor / (dist * dist);
         }
         // levi
         if (p.getY() > params.getMaxY() - buffer) {
-            double dist = Math.max(1e-12, params.getMaxY() - p.getY());
+            double dist = Math.max(1e-12, Math.abs(params.getMaxY() - p.getY()));
             fy -= repelFactor / (dist * dist);
         }
 
