@@ -122,6 +122,7 @@ public class ParallelSimulation implements Simulation {
      */
     private void updateParticlePosition(int particleIndex, List<Particle> particles, double[][] forces) {
         Particle p = particles.get(particleIndex);
+        double dampingFactor = 0.99; // Faktor dušenja za preprečevanje prevelikih hitrosti
         
         // Pridobimo sile
         double fx = forces[particleIndex][0];
@@ -131,9 +132,9 @@ public class ParallelSimulation implements Simulation {
         double ax = fx / p.getMass();
         double ay = fy / p.getMass();
         
-        // Posodobimo hitrost z uporabo pospeska (v = v + a)
-        double newVx = p.getVx() + ax;
-        double newVy = p.getVy() + ay;
+        // Posodobimo hitrost z uporabo pospeska in dušenja (v = (v + a) * damping)
+        double newVx = (p.getVx() + ax) * dampingFactor;
+        double newVy = (p.getVy() + ay) * dampingFactor;
         
         // Posodobimo pozicijo z uporabo hitrosti (x = x + v)
         double newX = p.getX() + newVx;

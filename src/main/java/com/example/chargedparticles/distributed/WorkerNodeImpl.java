@@ -78,10 +78,11 @@ public class WorkerNodeImpl extends UnicastRemoteObject implements WorkerNode {
             totalForceX += boundaryForce[0];
             totalForceY += boundaryForce[1];
             
-            // Posodobi hitrost (F = ma, torej a = F/m, v_new = v_old + a)
+            // Posodobi hitrost z dušenjem (F = ma, torej a = F/m, v_new = (v_old + a) * damping)
             double mass = myParticle.getMass();
-            double newVx = myParticle.getVx() + (totalForceX / mass);
-            double newVy = myParticle.getVy() + (totalForceY / mass);
+            double dampingFactor = 0.99; // Faktor dušenja za preprečevanje prevelikih hitrosti
+            double newVx = (myParticle.getVx() + (totalForceX / mass)) * dampingFactor;
+            double newVy = (myParticle.getVy() + (totalForceY / mass)) * dampingFactor;
             
             // Ustvari posodobljen delec z novo hitrostjo
             ParticleState updated = new ParticleState(
@@ -192,10 +193,11 @@ public class WorkerNodeImpl extends UnicastRemoteObject implements WorkerNode {
             totalForceX += boundaryForce[0];
             totalForceY += boundaryForce[1];
             
-            // Posodobi hitrost (F = ma, torej a = F/m, v_new = v_old + a)
+            // Posodobi hitrost z dušenjem (F = ma, torej a = F/m, v_new = (v_old + a) * damping)
             double mass = myParticle.getMass();
-            double newVx = myParticle.getVx() + (totalForceX / mass);
-            double newVy = myParticle.getVy() + (totalForceY / mass);
+            double dampingFactor = 0.99; // Faktor dušenja za preprečevanje prevelikih hitrosti
+            double newVx = (myParticle.getVx() + (totalForceX / mass)) * dampingFactor;
+            double newVy = (myParticle.getVy() + (totalForceY / mass)) * dampingFactor;
             
             // Posodobi tudi pozicijo
             double newX = myParticle.getX() + newVx;

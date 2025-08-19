@@ -11,7 +11,7 @@ public class ForceUtils {
     /**
      * formula:
      *    F = |c1 * c2| / d^2
-     * ce imata delca enak predznak naboja se privlacita.
+     * ce imata delca enak predznak naboja se odbijata, ce imata razlicen se privlacita.
      *
      * @param p1 delec ki izkusa silo
      * @param p2 delec, ki povzroca silo
@@ -37,9 +37,9 @@ public class ForceUtils {
         // izracun magnitude sile
         double magnitude = Math.abs(c1 * c2) / r2;
 
-        // Določitev predznaka sile (privlačenje, če imata enak predznak, odbijanje sicer)
+        // Določitev predznaka sile (odbijanje, če imata enak predznak, privlačenje sicer)
 
-        double sign = (c1 * c2 >= 0) ? 1.0 : -1.0;
+        double sign = (c1 * c2 >= 0) ? -1.0 : 1.0;
 
         // Izračun komponent sile
         double Fx = sign * magnitude * (dx / r);

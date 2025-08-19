@@ -14,6 +14,7 @@ public class SequentialSimulation implements Simulation {
     public void performOneCycle(List<Particle> particles, SimulationParameters params) {
         int n = particles.size();
         double[][] forces = new double[n][2];
+        double dampingFactor = 0.99; // Faktor dušenja za preprečevanje prevelikih hitrosti
 
         // 1. izracun sil na vsak delec
         for (int i = 0; i < n; i++) {
@@ -48,9 +49,9 @@ public class SequentialSimulation implements Simulation {
             // izracunamo pospesek ( F = ma)
             double ax = fx / p.getMass();
             double ay = fy / p.getMass();
-            // posodibmo hitrost z uporabo pospeska ( v = v + a)
-            double newVx = p.getVx() + ax;
-            double newVy = p.getVy() + ay;
+            // posodibmo hitrost z uporabo pospeska in dušenja ( v = (v + a) * damping)
+            double newVx = (p.getVx() + ax) * dampingFactor;
+            double newVy = (p.getVy() + ay) * dampingFactor;
             // posodobimo pozicijo z uporabo hitrosti (x = x + v)
             double newX = p.getX() + newVx;
             double newY = p.getY() + newVy;
