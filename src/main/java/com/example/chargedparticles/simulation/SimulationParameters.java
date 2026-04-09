@@ -14,11 +14,12 @@ public class SimulationParameters {
     private double minX, maxX;   // Meje prostora v X smeri
     private double minY, maxY;   // Meje prostora v Y smeri
     private int fps;             // Hitrost osvezevanja (frames per second)
+    private SimulationMode simulationMode; // Nacin simulacije
 
     public SimulationParameters(boolean enableUI, int windowWidth, int windowHeight,
                                 int numParticles, int numCycles,
                                 double minX, double maxX, double minY, double maxY,
-                                int fps) {
+                                int fps, SimulationMode simulationMode) {
         this.enableUI = enableUI;
         this.windowWidth = windowWidth;
         this.windowHeight = windowHeight;
@@ -29,6 +30,7 @@ public class SimulationParameters {
         this.minY = minY;
         this.maxY = maxY;
         this.fps = fps;
+        this.simulationMode = simulationMode;
     }
 
     // Getterji
@@ -42,8 +44,10 @@ public class SimulationParameters {
     public double getMinY() { return minY; }
     public double getMaxY() { return maxY; }
     public int getFps() { return fps; }
+    public SimulationMode getSimulationMode() { return simulationMode; }
 
     // Setterji za dinamicno spreminjanje
     public void setNumParticles(int numParticles) { this.numParticles = numParticles; }
     public void setNumCycles(int numCycles) { this.numCycles = numCycles; }
+    public void setSimulationMode(SimulationMode simulationMode) { this.simulationMode = simulationMode; }
 }

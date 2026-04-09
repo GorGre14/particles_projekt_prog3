@@ -11,7 +11,7 @@ import java.util.List;
  * 1. Faza: Izracun sil med vsemi pari delcev - O(n^2)
  * 2. Faza: Posodobitev pozicij in hitrosti - O(n)
  */
-public class SequentialSimulation {
+public class SequentialSimulation implements Simulation {
 
     /**
      * Izvede en cikel simulacije.
@@ -19,6 +19,7 @@ public class SequentialSimulation {
      * @param particles seznam delcev
      * @param params    parametri simulacije
      */
+    @Override
     public void performOneCycle(List<Particle> particles, SimulationParameters params) {
         int n = particles.size();
         double[][] forces = new double[n][2]; // Shramba sil za vsak delec [Fx, Fy]
@@ -74,5 +75,10 @@ public class SequentialSimulation {
             p.setX(newX);
             p.setY(newY);
         }
+    }
+
+    @Override
+    public String getDescription() {
+        return "Sekvencna";
     }
 }

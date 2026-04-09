@@ -2,6 +2,7 @@ package com.example.chargedparticles.ui;
 
 import com.example.chargedparticles.model.Particle;
 import com.example.chargedparticles.simulation.SimulationParameters;
+import com.example.chargedparticles.simulation.SimulationMode;
 import com.example.chargedparticles.SimulationRunner;
 
 import javax.swing.*;
@@ -20,6 +21,7 @@ public class SimulationUI extends JPanel {
     // Kontrole
     private JTextField particlesField;
     private JTextField cyclesField;
+    private JComboBox<String> modeComboBox;
     private JButton startButton;
     private JButton resetButton;
     private Timer renderTimer;
@@ -48,6 +50,12 @@ public class SimulationUI extends JPanel {
         cyclesField = new JTextField(String.valueOf(params.getNumCycles()), 6);
         controlsPanel.add(cyclesField);
 
+        // Izbira nacina simulacije (samo sekvencna in vzporedna - porazdeljena se zazene loceno)
+        controlsPanel.add(new JLabel("Nacin:"));
+        modeComboBox = new JComboBox<>(new String[]{"sequential", "parallel"});
+        modeComboBox.setSelectedItem(params.getSimulationMode().getCommandLineArg());
+        controlsPanel.add(modeComboBox);
+
         // Start gumb
         startButton = new JButton("Start");
         controlsPanel.add(startButton);
@@ -64,9 +72,12 @@ public class SimulationUI extends JPanel {
             try {
                 int newParticles = Integer.parseInt(particlesField.getText());
                 int newCycles = Integer.parseInt(cyclesField.getText());
+                String selectedMode = (String) modeComboBox.getSelectedItem();
+                SimulationMode newMode = SimulationMode.fromCommandLineArg(selectedMode);
 
                 params.setNumParticles(newParticles);
                 params.setNumCycles(newCycles);
+                params.setSimulationMode(newMode);
 
                 // Ponastavimo delce
                 particles.clear();
@@ -78,7 +89,8 @@ public class SimulationUI extends JPanel {
                 SimulationRunner.restartSimulation();
 
                 JOptionPane.showMessageDialog(this,
-                        "Simulacija zagnana: " + newParticles + " delcev, " + newCycles + " ciklov.");
+                        "Simulacija zagnana (" + newMode.getDescription() + "): "
+                        + newParticles + " delcev, " + newCycles + " ciklov.");
 
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(this,
