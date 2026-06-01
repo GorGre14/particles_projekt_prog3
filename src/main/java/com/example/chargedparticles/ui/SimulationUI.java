@@ -159,11 +159,20 @@ public class SimulationUI extends JPanel {
                             java.util.Map<String, String> env = pb.environment();
                             env.putAll(System.getenv());
 
-                            // Nastavimo MPJ_HOME, če ni nastavljen, a obstaja privzeta pot
+                            // Nastavimo MPJ_HOME, če ni nastavljen, a obstaja v kakšni od privzetih poti
                             if (env.get("MPJ_HOME") == null) {
-                                java.io.File defaultMpj = new java.io.File("/Users/gregorantonaz/mpj");
-                                if (defaultMpj.exists()) {
-                                    env.put("MPJ_HOME", defaultMpj.getAbsolutePath());
+                                String[] possiblePaths = {
+                                    System.getProperty("user.home") + "/mpj",
+                                    "/Users/gregorantonaz/mpj",
+                                    "/usr/local/mpj",
+                                    "/opt/mpj"
+                                };
+                                for (String path : possiblePaths) {
+                                    java.io.File dir = new java.io.File(path);
+                                    if (dir.exists() && dir.isDirectory()) {
+                                        env.put("MPJ_HOME", dir.getAbsolutePath());
+                                        break;
+                                    }
                                 }
                             }
 

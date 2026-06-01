@@ -14,9 +14,19 @@ if [ -z "$JAVA_HOME" ]; then
 fi
 
 if [ -z "$MPJ_HOME" ]; then
-    echo "NAPAKA: MPJ_HOME ni nastavljen."
-    echo "Namestite MPJ Express in nastavite: export MPJ_HOME=/pot/do/mpj"
-    exit 1
+    if [ -d "$HOME/mpj" ]; then
+        export MPJ_HOME="$HOME/mpj"
+    elif [ -d "/Users/gregorantonaz/mpj" ]; then
+        export MPJ_HOME="/Users/gregorantonaz/mpj"
+    elif [ -d "/usr/local/mpj" ]; then
+        export MPJ_HOME="/usr/local/mpj"
+    elif [ -d "/opt/mpj" ]; then
+        export MPJ_HOME="/opt/mpj"
+    else
+        echo "NAPAKA: MPJ_HOME ni nastavljen."
+        echo "Namestite MPJ Express in nastavite: export MPJ_HOME=/pot/do/mpj"
+        exit 1
+    fi
 fi
 
 if [ -z "$1" ]; then
