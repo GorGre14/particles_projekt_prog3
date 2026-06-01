@@ -128,7 +128,7 @@ public class DistributedSimulation {
                 double dx = x2 - x1;
                 double dy = y2 - y1;
                 double r2 = dx * dx + dy * dy;
-                if (r2 < 1e-12) r2 = 1e-12;
+                if (r2 < 1.0) r2 = 1.0;
                 double r = Math.sqrt(r2);
 
                 double magnitude = Math.abs(c1 * c2) / r2;
@@ -143,19 +143,19 @@ public class DistributedSimulation {
             double repelFactor = 10.0;
 
             if (x1 < params.getMinX() + buffer) {
-                double dist = Math.max(1e-12, x1 - params.getMinX());
+                double dist = Math.max(0.1, x1 - params.getMinX());
                 fxSum += repelFactor / (dist * dist);
             }
             if (x1 > params.getMaxX() - buffer) {
-                double dist = Math.max(1e-12, params.getMaxX() - x1);
+                double dist = Math.max(0.1, params.getMaxX() - x1);
                 fxSum -= repelFactor / (dist * dist);
             }
             if (y1 < params.getMinY() + buffer) {
-                double dist = Math.max(1e-12, y1 - params.getMinY());
+                double dist = Math.max(0.1, y1 - params.getMinY());
                 fySum += repelFactor / (dist * dist);
             }
             if (y1 > params.getMaxY() - buffer) {
-                double dist = Math.max(1e-12, params.getMaxY() - y1);
+                double dist = Math.max(0.1, params.getMaxY() - y1);
                 fySum -= repelFactor / (dist * dist);
             }
 

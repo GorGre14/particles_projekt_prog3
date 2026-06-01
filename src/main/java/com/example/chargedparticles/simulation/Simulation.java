@@ -11,6 +11,7 @@ public interface Simulation {
 
     /**
      * Izvede en cikel simulacije.
+     *
      * Vsak cikel vsebuje:
      * 1) Izracun sil za vsak delec
      * 2) Posodabljanje pozicije in hitrosti

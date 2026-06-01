@@ -27,9 +27,9 @@ public class ForceUtils {
         // Kvadrat razdalje (izognemo se korenjenju)
         double r2 = dx * dx + dy * dy;
 
-        // Preprecevanje deljenja z niclo
-        if (r2 < 1e-12) {
-            r2 = 1e-12;
+        // Minimum 1 pixel apart to prevent force explosion
+        if (r2 < 1.0) {
+            r2 = 1.0;
         }
         double r = Math.sqrt(r2);
 
@@ -66,22 +66,22 @@ public class ForceUtils {
 
         // Levi rob
         if (p.getX() < params.getMinX() + buffer) {
-            double dist = Math.max(1e-12, p.getX() - params.getMinX());
+            double dist = Math.max(0.1, p.getX() - params.getMinX());
             fx += repelFactor / (dist * dist);
         }
         // Desni rob
         if (p.getX() > params.getMaxX() - buffer) {
-            double dist = Math.max(1e-12, params.getMaxX() - p.getX());
+            double dist = Math.max(0.1, params.getMaxX() - p.getX());
             fx -= repelFactor / (dist * dist);
         }
         // Zgornji rob
         if (p.getY() < params.getMinY() + buffer) {
-            double dist = Math.max(1e-12, p.getY() - params.getMinY());
+            double dist = Math.max(0.1, p.getY() - params.getMinY());
             fy += repelFactor / (dist * dist);
         }
         // Spodnji rob
         if (p.getY() > params.getMaxY() - buffer) {
-            double dist = Math.max(1e-12, params.getMaxY() - p.getY());
+            double dist = Math.max(0.1, params.getMaxY() - p.getY());
             fy -= repelFactor / (dist * dist);
         }
 

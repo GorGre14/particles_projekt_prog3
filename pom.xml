@@ -22,7 +22,7 @@
             <artifactId>mpj</artifactId>
             <version>0.44</version>
             <scope>system</scope>
-            <systemPath>${env.MPJ_HOME}/lib/mpj.jar</systemPath>
+            <systemPath>/Users/gregorantonaz/mpj/lib/mpj.jar</systemPath>
         </dependency>
     </dependencies>
 

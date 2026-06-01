@@ -29,8 +29,7 @@ public class SimulationRunner {
      * Ponovno zazene simulacijo z trenutnimi parametri.
      * Ustavi prejsnjo simulacijo, ce se izvaja.
      */
-    public static void restartSimulation() {
-        // Ustavimo prejsnjo simulacijo
+    public static void stopSimulation() {
         if (simulationThread != null && simulationThread.isAlive()) {
             simulationThread.interrupt();
             try {
@@ -39,11 +38,13 @@ public class SimulationRunner {
                 Thread.currentThread().interrupt();
             }
         }
-
-        // Sprostimo resurse stare simulacije
         if (simulation != null) {
             simulation.shutdown();
         }
+    }
+
+    public static void restartSimulation() {
+        stopSimulation();
 
         // Ustvarimo novo simulacijo glede na nacin
         simulation = SimulationFactory.createSimulation(params.getSimulationMode());
