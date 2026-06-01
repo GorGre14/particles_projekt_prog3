@@ -1,3 +1,4 @@
+
 package com.example.chargedparticles.ui;
 
 import com.example.chargedparticles.model.Particle;
@@ -104,28 +105,22 @@ public class SimulationUI extends JPanel {
                             + "<p style='color: #34495e; font-size: 12px; line-height: 1.4;'>"
                             + "Porazdeljeni način deluje preko knjižnice <b>MPJ Express</b> v ločenih JVM pomnilniških prostorih, "
                             + "kar zagotavlja vrhunsko zmogljivost pri večjem številu delcev (npr. 4000) brez contentiona na pomnilniškem vodilu.<br>"
-                            + "Zato ga ni mogoče neposredno pognati iz te grafične aplikacije (saj procesi ne morejo enostavno deliti pomnilnika za risanje)."
+                            + "Zato ga ni mogoče neposredno pognati znotraj tega istega okna."
                             + "</p>"
                             + "<div style='background-color: #fcf8e3; border: 1px solid #faebcc; border-radius: 4px; padding: 10px; margin-bottom: 12px; color: #8a6d3b; font-size: 11px;'>"
                             + "<b>Predpogoji za zagon:</b><br>"
                             + "• Nameščen MPJ Express (različica 0.44)<br>"
                             + "• Nastavljena spremenljivka <code>MPJ_HOME</code> (npr. <code>export MPJ_HOME=/usr/local/mpj</code>)"
                             + "</div>"
-                            + "<b style='color: #2c3e50; font-size: 12px;'>1. Zagon z vizualizacijo (Master proces bo odprl GUI):</b><br>"
+                            + "<b style='color: #2c3e50; font-size: 12px;'>Zagon iz terminala (priporočeno):</b><br>"
                             + "<div style='background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 11px; margin-top: 4px; margin-bottom: 10px; color: #333;'>"
                             + "./run_distributed.sh " + np + " --particles " + newParticles + " --cycles " + newCycles + " --ui true"
                             + "</div>"
-                            + "<b style='color: #2c3e50; font-size: 12px;'>2. Hitri zagon brez grafičnega vmesnika (Merjenje zmogljivosti):</b><br>"
-                            + "<div style='background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 11px; margin-top: 4px; margin-bottom: 10px; color: #333;'>"
-                            + "./run_distributed.sh " + np + " --particles " + newParticles + " --cycles " + newCycles + " --ui false"
-                            + "</div>"
-                            + "<b style='color: #2c3e50; font-size: 12px;'>3. Primerjava s sekvenčnim in vzporednim načinom:</b><br>"
-                            + "<div style='background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 11px; margin-top: 4px; margin-bottom: 10px; color: #333;'>"
-                            + "./run_sequential.sh --particles " + newParticles + " --cycles " + newCycles + " --ui false<br>"
-                            + "./run_parallel.sh --particles " + newParticles + " --cycles " + newCycles + " --ui false"
-                            + "</div>"
+                            + "<p style='font-size: 11px; color: #34495e;'>"
+                            + "Lahko pa kliknete spodnji gumb <b>\"Zaženi samodejno\"</b>, ki bo v ozadju zagnal skripto in samodejno odprl novo vizualizacijsko okno za porazdeljeno simulacijo."
+                            + "</p>"
                             + "<p style='font-size: 10px; color: #7f8c8d; margin-top: 5px;'>"
-                            + "<i>Nasvet: Besedilo zgoraj lahko enostavno izberete in prekopirate (Ctrl+C / Cmd+C) ter zaženete v terminalu v mapi projekta.</i>"
+                            + "<i>Nasvet: Besedilo zgoraj lahko enostavno izberete in prekopirate (Ctrl+C / Cmd+C).</i>"
                             + "</p>"
                             + "</body></html>";
 
@@ -137,9 +132,62 @@ public class SimulationUI extends JPanel {
 
                     JScrollPane scrollPane = new JScrollPane(editorPane);
                     scrollPane.setBorder(null);
-                    scrollPane.setPreferredSize(new Dimension(480, 450));
+                    scrollPane.setPreferredSize(new Dimension(480, 420));
 
-                    JOptionPane.showMessageDialog(this, scrollPane, "Zagon porazdeljenega načina (MPI)", JOptionPane.INFORMATION_MESSAGE);
+                    Object[] options = {"Zaženi samodejno", "Zapri / Kopiraj navodila"};
+                    int choice = JOptionPane.showOptionDialog(
+                            this,
+                            scrollPane,
+                            "Zagon porazdeljenega načina (MPI)",
+                            JOptionPane.DEFAULT_OPTION,
+                            JOptionPane.INFORMATION_MESSAGE,
+                            null,
+                            options,
+                            options[0]
+                    );
+
+                    if (choice == 0) { // Zaženi samodejno
+                        try {
+                            ProcessBuilder pb = new ProcessBuilder("./run_distributed.sh",
+                                    String.valueOf(np),
+                                    "--particles", String.valueOf(newParticles),
+                                    "--cycles", String.valueOf(newCycles),
+                                    "--ui", "true");
+                            pb.directory(new java.io.File(System.getProperty("user.dir")));
+
+                            // Nastavimo okoljske spremenljivke
+                            java.util.Map<String, String> env = pb.environment();
+                            env.putAll(System.getenv());
+
+                            // Nastavimo MPJ_HOME, če ni nastavljen, a obstaja privzeta pot
+                            if (env.get("MPJ_HOME") == null) {
+                                java.io.File defaultMpj = new java.io.File("/Users/gregorantonaz/mpj");
+                                if (defaultMpj.exists()) {
+                                    env.put("MPJ_HOME", defaultMpj.getAbsolutePath());
+                                }
+                            }
+
+                            // Nastavimo JAVA_HOME, če ni nastavljen, a obstaja Homebrew Java
+                            if (env.get("JAVA_HOME") == null) {
+                                java.io.File homebrewJava = new java.io.File("/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home");
+                                if (homebrewJava.exists()) {
+                                    env.put("JAVA_HOME", homebrewJava.getAbsolutePath());
+                                    env.put("PATH", homebrewJava.getAbsolutePath() + "/bin:" + env.get("PATH"));
+                                }
+                            }
+
+                            pb.start();
+                            JOptionPane.showMessageDialog(this,
+                                    "Zagon uspešno sprožen v ozadju!\nV kratkem se bo odprlo novo okno s porazdeljeno simulacijo.",
+                                    "Zagon uspešen",
+                                    JOptionPane.INFORMATION_MESSAGE);
+                        } catch (IOException ex) {
+                            JOptionPane.showMessageDialog(this,
+                                    "Napaka pri samodejnem zagonu: " + ex.getMessage() + "\nProsimo, zaženite skripto ročno v terminalu.",
+                                    "Napaka pri zagonu",
+                                    JOptionPane.ERROR_MESSAGE);
+                        }
+                    }
                 } else {
                     // Ustavimo staro simulacijo preden posegamo v seznam delcev
                     SimulationRunner.stopSimulation();
