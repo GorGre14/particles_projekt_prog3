@@ -15,3 +15,16 @@ Thumbs.db
 
 # Maven
 dependency-reduced-pom.xml
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+
+# Agent/tooling scratch
+.claude/
+
+# Zastareli rezultati (nadomesca jih benchmark_results.csv)
+benchmark_results.json
