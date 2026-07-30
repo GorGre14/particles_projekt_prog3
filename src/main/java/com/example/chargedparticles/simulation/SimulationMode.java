@@ -1,12 +1,13 @@
 package com.example.chargedparticles.simulation;
 
 /**
- * Enumeracija za razlicne nacine simulacije.
+ * Nacini izvajanja simulacije.
  */
 public enum SimulationMode {
-    SEQUENTIAL("sequential", "Sekvencna simulacija"),
-    PARALLEL("parallel", "Vzporedna simulacija"),
-    DISTRIBUTED("distributed", "Porazdeljena simulacija (MPJ)");
+
+    SEQUENTIAL("sequential", "Sekvencna"),
+    PARALLEL("parallel", "Vzporedna (niti)"),
+    DISTRIBUTED("distributed", "Porazdeljena (MPI)");
 
     private final String commandLineArg;
     private final String description;
@@ -24,9 +25,7 @@ public enum SimulationMode {
         return description;
     }
 
-    /**
-     * Najde SimulationMode na podlagi command line argumenta.
-     */
+    /** Vrne nacin za argument ukazne vrstice ali null, ce ga ni. */
     public static SimulationMode fromCommandLineArg(String arg) {
         for (SimulationMode mode : values()) {
             if (mode.commandLineArg.equalsIgnoreCase(arg)) {
@@ -34,5 +33,11 @@ public enum SimulationMode {
             }
         }
         return null;
+    }
+
+    /** Opis se uporabi tudi kot besedilo v spustnem seznamu vmesnika. */
+    @Override
+    public String toString() {
+        return description;
     }
 }

@@ -2,35 +2,72 @@ package com.example.chargedparticles.simulation;
 
 /**
  * Parametri simulacije naelektrenih delcev.
- * Vsebuje vse nastavitve potrebne za izvajanje simulacije.
+ * Vsebuje vse nastavitve, potrebne za izvajanje in izris simulacije.
  */
 public class SimulationParameters {
 
-    private boolean enableUI;    // Ali je graficni vmesnik vklopljen
-    private int windowWidth;     // Sirina okna
-    private int windowHeight;    // Visina okna
-    private int numParticles;    // Stevilo delcev
-    private int numCycles;       // Stevilo simulacijskih ciklov
-    private double minX, maxX;   // Meje prostora v X smeri
-    private double minY, maxY;   // Meje prostora v Y smeri
-    private int fps;             // Hitrost osvezevanja (frames per second)
-    private SimulationMode simulationMode; // Nacin simulacije
+    private boolean enableUI = true;              // ali je graficni vmesnik vklopljen
+    private int windowWidth = 800;                // sirina okna
+    private int windowHeight = 600;               // visina okna
+    private int numParticles = 400;               // stevilo delcev
+    private int numCycles = 1000;                 // stevilo simulacijskih ciklov
+    private double minX = 0.0, maxX = 800.0;      // meje prostora v smeri X
+    private double minY = 0.0, maxY = 600.0;      // meje prostora v smeri Y
+    private int fps = 60;                         // hitrost osvezevanja izrisa
+    private SimulationMode simulationMode = SimulationMode.SEQUENTIAL;
 
-    public SimulationParameters(boolean enableUI, int windowWidth, int windowHeight,
-                                int numParticles, int numCycles,
-                                double minX, double maxX, double minY, double maxY,
-                                int fps, SimulationMode simulationMode) {
-        this.enableUI = enableUI;
-        this.windowWidth = windowWidth;
-        this.windowHeight = windowHeight;
-        this.numParticles = numParticles;
-        this.numCycles = numCycles;
-        this.minX = minX;
-        this.maxX = maxX;
-        this.minY = minY;
-        this.maxY = maxY;
-        this.fps = fps;
-        this.simulationMode = simulationMode;
+    /**
+     * Prebere parametre iz argumentov ukazne vrstice. Neomenjeni parametri
+     * obdrzijo privzete vrednosti. Metodo uporabljata oba vstopna razreda,
+     * zato so opcije v vseh nacinih enake.
+     *
+     * @throws IllegalArgumentException ob neznanem ali nepopolnem argumentu
+     */
+    public static SimulationParameters fromArgs(String[] args) {
+        SimulationParameters p = new SimulationParameters();
+        try {
+            for (int i = 0; i < args.length; i++) {
+                switch (args[i]) {
+                    case "--ui":
+                        p.enableUI = Boolean.parseBoolean(args[++i]);
+                        break;
+                    case "--window":
+                        p.windowWidth = Integer.parseInt(args[++i]);
+                        p.windowHeight = Integer.parseInt(args[++i]);
+                        break;
+                    case "--particles":
+                        p.numParticles = Integer.parseInt(args[++i]);
+                        break;
+                    case "--cycles":
+                        p.numCycles = Integer.parseInt(args[++i]);
+                        break;
+                    case "--bounds":
+                        p.minX = Double.parseDouble(args[++i]);
+                        p.maxX = Double.parseDouble(args[++i]);
+                        p.minY = Double.parseDouble(args[++i]);
+                        p.maxY = Double.parseDouble(args[++i]);
+                        break;
+                    case "--fps":
+                        p.fps = Integer.parseInt(args[++i]);
+                        break;
+                    case "--mode":
+                        String arg = args[++i];
+                        SimulationMode mode = SimulationMode.fromCommandLineArg(arg);
+                        if (mode == null) {
+                            throw new IllegalArgumentException("Neznan nacin simulacije: " + arg);
+                        }
+                        p.simulationMode = mode;
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Neznan argument: " + args[i]);
+                }
+            }
+        } catch (ArrayIndexOutOfBoundsException e) {
+            throw new IllegalArgumentException("Manjka vrednost pri zadnjem argumentu");
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Napacen format stevila: " + e.getMessage());
+        }
+        return p;
     }
 
     // Getterji
@@ -46,7 +83,8 @@ public class SimulationParameters {
     public int getFps() { return fps; }
     public SimulationMode getSimulationMode() { return simulationMode; }
 
-    // Setterji za dinamicno spreminjanje
+    // Setterji za spreminjanje iz graficnega vmesnika
+    public void setEnableUI(boolean enableUI) { this.enableUI = enableUI; }
     public void setNumParticles(int numParticles) { this.numParticles = numParticles; }
     public void setNumCycles(int numCycles) { this.numCycles = numCycles; }
     public void setSimulationMode(SimulationMode simulationMode) { this.simulationMode = simulationMode; }

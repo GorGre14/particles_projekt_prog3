@@ -5,31 +5,33 @@ import java.util.List;
 
 /**
  * Vmesnik za simulacijo naelektrenih delcev.
- * Omogoca enotno uporabo sekvencne, vzporedne in porazdeljene simulacije.
+ *
+ * Vse tri izvedbe (sekvencna, vzporedna, porazdeljena) racunajo z istim
+ * jedrom {@link ForceKernel} nad isto podatkovno postavitvijo. Razlikujejo se
+ * samo v tem, kdo izracuna kateri odsek delcev.
  */
 public interface Simulation {
 
     /**
-     * Izvede en cikel simulacije.
-     *
-     * Vsak cikel vsebuje:
-     * 1) Izracun sil za vsak delec
-     * 2) Posodabljanje pozicije in hitrosti
-     *
-     * @param particles seznam delcev
-     * @param params parametri simulacije
+     * Izvede en cikel simulacije:
+     * 1) izracun sil za vsak delec,
+     * 2) posodobitev hitrosti in pozicij.
      */
-    void performOneCycle(List<Particle> particles, SimulationParameters params);
+    void performOneCycle();
 
     /**
-     * Sprosti resurse (ce jih simulacija uporablja).
+     * Prepise interno stanje v seznam Particle objektov.
+     *
+     * Simulacija racuna nad ravnim double[] poljem, zato seznam delcev med
+     * izvajanjem ni azuren. Metodo klicemo pred izrisom ali izpisom, ne v
+     * vroci zanki.
      */
-    default void shutdown() {
-        // Privzeto ni potrebno nic naredit
-    }
+    void syncToParticles(List<Particle> particles);
 
-    /**
-     * Vrne opis simulacije (npr. "Sekvencna", "Vzporedna (8 niti)")
-     */
+    /** Opis nacina, npr. "Sekvencna" ali "Vzporedna (10 niti)". */
     String getDescription();
+
+    /** Sprosti vire (npr. thread pool). Privzeto ni potrebno nic. */
+    default void shutdown() {
+    }
 }
