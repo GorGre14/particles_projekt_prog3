@@ -1,0 +1,724 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[slovene]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{tcolorbox}
+
+\geometry{margin=2.5cm}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.95}
+
+\lstdefinestyle{javastyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{blue}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\small,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    language=Java
+}
+
+\lstset{style=javastyle}
+
+\newtcolorbox{vprasanje}{
+    colback=blue!5!white,
+    colframe=blue!75!black,
+    title=Mo\v{z}no vpra\v{s}anje na zagovoru,
+    fonttitle=\bfseries
+}
+
+\newtcolorbox{kljucno}{
+    colback=red!5!white,
+    colframe=red!75!black,
+    title=Klju\v{c}ni koncept,
+    fonttitle=\bfseries
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Programiranje 3 -- Projekt}
+\lhead{89201088}
+\rfoot{\thepage}
+
+\title{\textbf{Simulacija naelektrenih delcev} \\ \large Priprava na zagovor projekta -- Programiranje 3}
+\author{Gregor Antonaz -- 89201088}
+\date{April 2026}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+%======================================================================
+\section{Pregled problema}
+%======================================================================
+
+Simuliramo sistem $n$ naelektrenih delcev v 2D ravnini znotraj omejenega pravokotnika. Vsak delec ima:
+\begin{itemize}
+    \item Pozicijo $(x, y)$
+    \item Hitrost $(v_x, v_y)$
+    \item Naboj $c$ (pozitiven ali negativen)
+    \item Maso $m = 1.0$
+\end{itemize}
+
+\subsection{Coulombova sila (modificirana)}
+
+Sila med delcema $i$ in $j$ je:
+\[
+F = \frac{|c_i \cdot c_j|}{d^2}
+\]
+kjer je $d$ evklidska razdalja med njima: $d = \sqrt{(x_j - x_i)^2 + (y_j - y_i)^2}$.
+
+\begin{kljucno}
+\textbf{POZOR -- ``spin'' problema:} V na\v{s}i simulaciji velja \textbf{obratna logika} kot v pravi fiziki:
+\begin{itemize}
+    \item Delca z \textbf{enakim} predznakom naboja se \textbf{privla\v{c}ita}
+    \item Delca z \textbf{razli\v{c}nim} predznakom naboja se \textbf{odbijata}
+\end{itemize}
+To je nasprotno od Coulombovega zakona v fiziki, vendar je tako definirano v nalogi (poglavje 11.2.1, Andrews).
+\end{kljucno}
+
+\subsection{Mejna sila}
+
+Pravokotnik ima naboj, ki odbija delce. Ko se delec pribli\v{z}a robu (manj kot 5 enot), deluje nanj odbojna sila:
+\[
+F_{\text{meja}} = \frac{10.0}{\text{dist}^2}
+\]
+To prepre\v{c}i, da bi delci zapustili simulacijski prostor.
+
+\subsection{Posodobitev stanja (Eulerjev integracija)}
+
+Vsak cikel:
+\begin{enumerate}
+    \item Izra\v{c}unamo vse sile na vsak delec
+    \item Pospe\v{s}ek: $a = F / m$
+    \item Nova hitrost: $v' = v + a$
+    \item Nova pozicija: $x' = x + v'$
+\end{enumerate}
+
+\begin{vprasanje}
+Zakaj se najprej izra\v{c}unajo \textbf{vse} sile, \v{s}ele nato posodobijo pozicije?
+
+\textbf{Odgovor:} \v{C}e bi pozicije posodabljali sproti (med izra\v{c}unom sil), bi nekateri delci \v{z}e imeli nove pozicije, drugi pa \v{s}e stare. Rezultat bi bil nedosleden -- odvisen od vrstnega reda obdelave. Z dvofaznim pristopom zagotovimo, da vsi delci ``vidijo'' enako stanje v istem ciklu.
+\end{vprasanje}
+
+%======================================================================
+\section{Struktura projekta}
+%======================================================================
+
+\begin{verbatim}
+src/main/java/com/example/chargedparticles/
+  SimulationRunner.java          # vstopna tocka (seq + parallel)
+                                 # + skupna simulacijska zanka runCycles()
+  DistributedRunner.java         # vstopna tocka za MPJ
+  model/
+    Particle.java                # podatkovni model delca
+  simulation/
+    ForceKernel.java             # izracun sil in integracija (skupno jedro)
+    Simulation.java              # vmesnik
+    AbstractSimulation.java      # skupno stanje vseh treh nacinov
+    SequentialSimulation.java    # sekvencna impl.
+    ParallelSimulation.java      # vzporedna impl.
+    DistributedSimulation.java   # porazdeljena impl. (MPJ)
+    SimulationFactory.java       # factory vzorec
+    SimulationMode.java          # enum: SEQUENTIAL, PARALLEL, DISTRIBUTED
+    SimulationParameters.java    # parametri + branje ukazne vrstice
+  ui/
+    SimulationUI.java            # Swing GUI
+\end{verbatim}
+
+\begin{kljucno}
+Vsi trije na\v{c}ini uporabljajo \textbf{isto ra\v{c}unsko jedro} (\texttt{ForceKernel}) nad \textbf{isto podatkovno postavitvijo} in \textbf{isto simulacijsko zanko} (\texttt{SimulationRunner.runCycles}). Razlikujejo se samo v tem, \textbf{kdo} izra\v{c}una \textbf{kateri odsek} delcev. Zato izmerjene razlike v \v{c}asu izvirajo iz na\v{c}ina delitve dela in ne iz razlik v izvedbi fizike.
+\end{kljucno}
+
+\subsection{Klju\v{c}ni razredi}
+
+\subsubsection{Particle.java}
+Preprost POJO z lastnostmi \texttt{x, y, vx, vy, charge, mass}. Ima stati\v{c}no tovarni\v{s}ko metodo \texttt{randomParticle()} ki sprejme \texttt{Random} objekt za deterministi\v{c}no generiranje.
+
+\begin{vprasanje}
+Zakaj uporabljamo \texttt{Random} z seed-om 42?
+
+\textbf{Odgovor:} Da zagotovimo \textbf{reproducibilnost}. Vsi trije na\v{c}ini (sekvencni, vzporedni, porazdeljeni) za\v{c}nejo z \textbf{enako} za\v{c}etno razporeditvijo delcev, kar omogo\v{c}a pravilno primerjavo rezultatov in \v{c}asov izvajanja. \v{C}e seed ne bi bil enak, ne bi mogli potrditi, da implementacije dajejo enake rezultate.
+\end{vprasanje}
+
+\subsubsection{Simulation.java (vmesnik)}
+Definira pogodbo za vse implementacije:
+\begin{lstlisting}
+public interface Simulation {
+    void performOneCycle();
+    void syncToParticles(List<Particle> particles);
+    String getDescription();
+    default void shutdown() { }
+}
+\end{lstlisting}
+
+\texttt{performOneCycle()} izvede en cikel nad internim stanjem. \texttt{syncToParticles()} to stanje prepi\v{s}e v seznam \texttt{Particle} objektov -- klicemo ga samo pred izrisom ali izpisom, ne v vro\v{c}i zanki.
+
+\begin{vprasanje}
+Zakaj \texttt{performOneCycle()} nima parametrov?
+
+\textbf{Odgovor:} Delci in parametri se ne spreminjajo med tekom, zato jih simulacija prejme \textbf{v konstruktorju} in shrani. Tako v vsakem ciklu ni ponovnega prenosa argumentov niti preverjanja, ali je stanje \v{z}e inicializirano.
+\end{vprasanje}
+
+\begin{vprasanje}
+Zakaj smo uporabili vmesnik?
+
+\textbf{Odgovor:} Vmesnik omogo\v{c}a \textbf{polimorfizem} -- \texttt{SimulationRunner} dela z \texttt{Simulation} referenco in ne ve, katera implementacija te\v{c}e. To omogo\v{c}a enostavno preklapljanje med na\v{c}ini brez spreminjanja klicne kode. Gre za \textbf{Strategy} na\v{c}rtovalski vzorec.
+\end{vprasanje}
+
+\subsubsection{AbstractSimulation.java}
+Skupna osnova vseh treh na\v{c}inov. Hrani stanje, ki je pri vseh enako:
+\begin{lstlisting}
+protected final int n;          // stevilo delcev
+protected final double[] state; // 6 doublov na delec
+protected final double[] forces;// forces[i*2], forces[i*2+1]
+protected final SimulationParameters params;
+\end{lstlisting}
+Ker je stanje skupno, se podrazredi razlikujejo samo po tem, kako razdelijo delo. Tu je tudi \texttt{syncToParticles()}, ki je pri vseh treh na\v{c}inih enak.
+
+\subsubsection{ForceKernel.java}
+Stati\v{c}ni razred, ki vsebuje \textbf{vso fiziko} simulacije. Uporabljajo ga vsi trije na\v{c}ini, zato so ena\v{c}be zapisane na enem samem mestu.
+
+\textbf{Podatkovna postavitev.} Delci niso shranjeni kot objekti, ampak v \textbf{ravnem polju} \texttt{double[]}, 6 vrednosti na delec:
+\begin{lstlisting}
+// [x, y, vx, vy, charge, mass] -> 6 doublov na delec
+// delec i se zacne na odmiku i * 6
+\end{lstlisting}
+
+\textbf{Dve operaciji:}
+\begin{itemize}
+    \item \texttt{computeForces(state, n, start, end, forces, params)} -- izra\v{c}una sile za delce v obmo\v{c}ju $[\text{start}, \text{end})$ proti \textbf{vsem} $n$ delcem, vklju\v{c}no z mejnimi silami
+    \item \texttt{integrate(state, start, end, forces)} -- posodobi hitrosti in pozicije za isto obmo\v{c}je
+\end{itemize}
+
+\begin{kljucno}
+Polje \texttt{forces} je \textbf{globalno indeksirano}: rezultat za delec $i$ gre vedno v \texttt{forces[i*2]} in \texttt{forces[i*2+1]}, ne glede na to, kateri izvajalec ga je izra\v{c}unal. Ker so obmo\v{c}ja razli\v{c}nih izvajalcev disjunktna, lahko ve\v{c} niti hkrati pi\v{s}e v isto polje \textbf{brez zaklepanja}.
+\end{kljucno}
+
+Logika predznaka pri Coulombovi sili:
+\begin{lstlisting}
+double sign = (c1 * c2 >= 0) ? 1.0 : -1.0;
+fxSum += sign * magnitude * (dx / r);
+fySum += sign * magnitude * (dy / r);
+\end{lstlisting}
+
+\begin{kljucno}
+\texttt{dx = p2.x - p1.x}. \v{C}e je \texttt{sign = 1.0} (enak naboj), je sila v smeri \textbf{proti} p2 = \textbf{privla\v{c}enje}. \v{C}e je \texttt{sign = -1.0} (razli\v{c}en naboj), je sila \textbf{stran} od p2 = \textbf{odbijanje}.
+\end{kljucno}
+
+%======================================================================
+\section{Sekvencna implementacija}
+%======================================================================
+
+\texttt{SequentialSimulation} -- najenostavnej\v{s}a mo\v{z}na implementacija.
+
+\subsection{Algoritem}
+
+\begin{enumerate}
+    \item \textbf{Faza 1 -- Izra\v{c}un sil}: Za vsak delec $i$ izra\v{c}unamo skupno silo od vseh ostalih delcev $j$ in mejne sile. Shranimo v polje \texttt{forces[i][2]}.
+    \item \textbf{Faza 2 -- Posodobitev}: Za vsak delec posodobimo hitrost in pozicijo.
+\end{enumerate}
+
+\subsection{Kompleksnost}
+
+\begin{itemize}
+    \item Faza 1: $O(n^2)$ -- vsak delec proti vsem ostalim
+    \item Faza 2: $O(n)$ -- linearen prehod
+    \item \textbf{Skupaj na cikel}: $O(n^2)$
+    \item \textbf{Skupaj za simulacijo}: $O(n^2 \cdot C)$ kjer je $C$ \v{s}tevilo ciklov
+\end{itemize}
+
+Celotna sekvencna implementacija je zato samo dva klica jedra nad celotnim obmo\v{c}jem $[0, n)$:
+
+\begin{lstlisting}
+public void performOneCycle() {
+    ForceKernel.computeForces(state, n, 0, n, forces, params);
+    ForceKernel.integrate(state, 0, n, forces);
+}
+\end{lstlisting}
+
+\begin{vprasanje}
+Zakaj je sekvencna razli\v{c}ica tako kratka?
+
+\textbf{Odgovor:} Ker je vsa fizika v \texttt{ForceKernel}, sekvencna razli\v{c}ica pa samo dolo\v{c}i, da eno samo obmo\v{c}je $[0, n)$ obdela ena nit. Vzporedna in porazdeljena razli\v{c}ica kli\v{c}eta \textbf{isti dve metodi}, le z drugimi mejami obmo\v{c}ja. To je tudi razlog, da vse tri dajo popolnoma enak rezultat.
+\end{vprasanje}
+
+%======================================================================
+\section{Vzporedna implementacija (Parallel)}
+%======================================================================
+
+\texttt{ParallelSimulation} -- uporaba \texttt{ExecutorService} za paralelizacijo izra\v{c}una sil.
+
+\subsection{Strategija}
+
+\begin{kljucno}
+Paraleliziramo \textbf{Fazo 1} (izra\v{c}un sil). Faza 2 (posodobitev pozicij) ostane sekvencna -- je $O(n)$ in zanemarljivo hitra v primerjavi s Fazo 1 ki je $O(n^2)$.
+\end{kljucno}
+
+\subsection{Razdelitev dela}
+
+Delce razdelimo v \textbf{kose} (chunks):
+\begin{lstlisting}
+int chunkSize = (n + numThreads - 1) / numThreads;
+// nit 0: delci [0, chunkSize)
+// nit 1: delci [chunkSize, 2*chunkSize)
+// ...
+\end{lstlisting}
+
+Vsaka nit izra\v{c}una sile za \textbf{svoj kos} delcev, a pri tem prebere \textbf{vse} delce (ker vsak delec vpliva na vsakega drugega).
+
+\subsection{Sinhronizacija}
+
+Naloge (po ena na kos) zgradimo \textbf{enkrat} v konstruktorju, saj se ne spreminjajo. V vsakem ciklu jih samo oddamo:
+
+\begin{lstlisting}
+public void performOneCycle() {
+    executor.invokeAll(tasks);   // pregrada: caka na vse niti
+    ForceKernel.integrate(state, 0, n, forces);
+}
+\end{lstlisting}
+
+\texttt{invokeAll()} odda vse naloge in se vrne \textbf{\v{s}ele ko so vse kon\v{c}ane} -- deluje torej kot pregrada (barrier) med Fazo 1 in Fazo 2.
+
+\begin{vprasanje}
+Zakaj \texttt{invokeAll()} in ne \texttt{submit()} z \texttt{CountDownLatch}?
+
+\textbf{Odgovor:} \texttt{invokeAll()} \v{z}e vsebuje pregrado, zato \v{s}tevca ni treba ro\v{c}no ustvarjati, zmanj\v{s}evati in \v{c}akati nanj. Manj kode pomeni manj mo\v{z}nosti za napako -- npr. pozabljen \texttt{countDown()} v veji z izjemo bi glavno nit blokiral za vedno.
+\end{vprasanje}
+
+\begin{vprasanje}
+Zakaj ni \textbf{race condition} pri pisanju v \texttt{forces[i]}?
+
+\textbf{Odgovor:} Vsaka nit pi\v{s}e v \textbf{svoj del} polja \texttt{forces} -- nit 0 pi\v{s}e v indekse $[0, \text{chunkSize})$, nit 1 v $[\text{chunkSize}, 2 \cdot \text{chunkSize})$ itd. Ker se indeksi ne prekrivajo, ni potrebe po zaklepanju.
+\end{vprasanje}
+
+\begin{vprasanje}
+Zakaj Fazo 2 izvajamo sekvencno?
+
+\textbf{Odgovor:} Faza 2 je $O(n)$ -- linearna. Pri $n = 3000$ je to 3000 operacij. Faza 1 je $O(n^2) = 9.000.000$ operacij. Paralelizacija Faze 2 bi prinesla zanemarljiv prihranaek, hkrati pa bi uvedla kompleksnost sinhronizacije.
+\end{vprasanje}
+
+\subsection{Samodejno prilagajanje strojni opremi}
+
+\begin{lstlisting}
+this.numThreads = Runtime.getRuntime().availableProcessors();
+this.executor = Executors.newFixedThreadPool(numThreads);
+\end{lstlisting}
+
+\texttt{availableProcessors()} vrne \v{s}tevilo logi\v{c}nih jeder. Na mojem ra\v{c}unalniku je to 10.
+
+\begin{vprasanje}
+Zakaj \texttt{FixedThreadPool} in ne \texttt{CachedThreadPool}?
+
+\textbf{Odgovor:} \texttt{FixedThreadPool} ohranja konstantno \v{s}tevilo niti skozi celotno simulacijo. Ne ustvarja novih niti za vsak cikel -- niti se ponovno uporabijo. \texttt{CachedThreadPool} bi lahko ustvaril preve\v{c} niti in povzro\v{c}il overhead.
+\end{vprasanje}
+
+\subsection{Pohitritev}
+
+Idealna pohitritev z $T$ nitmi je $T\times$. V praksi je manj\v{s}a zaradi:
+\begin{itemize}
+    \item \textbf{Overhead} -- oddajanje nalog in pregrada \texttt{invokeAll} v vsakem ciklu
+    \item \textbf{Neenakomerna razdelitev} -- \v{c}e $n$ ni deljiv s \v{s}tevilom niti
+    \item \textbf{Amdahlov zakon} -- Faza 2 je sekvencna in omejuje maksimalno pohitritev
+\end{itemize}
+
+\begin{kljucno}
+\textbf{Amdahlov zakon:} \v{C}e je dele\v{z} sekvencne kode $s$, je maksimalna pohitritev:
+\[
+S = \frac{1}{s + \frac{1-s}{p}}
+\]
+V na\v{s}em primeru je $s \approx \frac{O(n)}{O(n^2)} \approx \frac{1}{n}$, kar je zelo majhno -- zato se vzporedna verzija dobro skalira.
+\end{kljucno}
+
+%======================================================================
+\section{Porazdeljena implementacija (MPJ Express)}
+%======================================================================
+
+\texttt{DistributedSimulation} + \texttt{DistributedRunner} -- uporaba MPI (Message Passing Interface) preko MPJ Express.
+
+\subsection{Kaj je MPJ Express?}
+
+MPJ Express je Java implementacija MPI standarda. Omogo\v{c}a komunikacijo med ve\v{c} procesi, ki te\v{c}ejo na istem ali razli\v{c}nih ra\v{c}unalnikih.
+
+\begin{vprasanje}
+Kaj je razlika med vzporedno in porazdeljeno implementacijo?
+
+\textbf{Odgovor:}
+\begin{itemize}
+    \item \textbf{Vzporedna}: Ve\v{c} \textbf{niti} v enem procesu, deljeni pomnilnik. Niti direktno berejo isti \texttt{List<Particle>}.
+    \item \textbf{Porazdeljena}: Ve\v{c} lo\v{c}enih \textbf{procesov}, vsak s svojim pomnilnikom. Procesi morajo \textbf{eksplicitno komunicirati} (MPI) za izmenjavo podatkov.
+\end{itemize}
+\end{vprasanje}
+
+\subsection{Zakaj lo\v{c}en DistributedRunner?}
+
+MPJ Express zahteva \texttt{MPI.Init(args)} na samem za\v{c}etku programa. Vsi procesi zazenejo \textbf{isti program} (SPMD -- Single Program, Multiple Data). Zato imamo lo\v{c}en vstopni razred, ki se za\v{z}ene z:
+\begin{verbatim}
+mpjrun.sh -np 4 com.example.chargedparticles.DistributedRunner
+\end{verbatim}
+
+\subsection{Podatkovne strukture za MPI}
+
+MPI ne more po\v{s}iljati Java objektov (\texttt{Particle}). Zato pretvorimo vse delce v \textbf{ravno polje} \texttt{double[]}:
+
+\begin{lstlisting}
+// 6 vrednosti na delec: x, y, vx, vy, charge, mass
+double[] state = new double[n * 6];
+
+// Delec i je na odmiku i * 6:
+// state[i*6 + 0] = x
+// state[i*6 + 1] = y
+// state[i*6 + 2] = vx
+// state[i*6 + 3] = vy
+// state[i*6 + 4] = charge
+// state[i*6 + 5] = mass
+\end{lstlisting}
+
+\begin{vprasanje}
+Zakaj ne serializiramo \texttt{Particle} objektov?
+
+\textbf{Odgovor:} Serializacija Java objektov je po\v{c}asna (overhead marshalling/unmarshalling). Ravno \texttt{double[]} polje je najhitrej\v{s}i na\v{c}in za MPI komunikacijo -- MPI.DOUBLE je primitiven tip, ki se kopira direktno brez pretvorb.
+\end{vprasanje}
+
+\subsection{Razdelitev delcev med procese}
+
+Delce razdelimo \v{c}im bolj enakomerno:
+\begin{lstlisting}
+// Zacetni indeks delcev za proces r.
+// Prvih (n mod size) procesov dobi en delec vec.
+private int startIndexOf(int r) {
+    int base = n / size;
+    int remainder = n % size;
+    return (r < remainder)
+        ? r * (base + 1)
+        : remainder * (base + 1) + (r - remainder) * base;
+}
+
+// Moje obmocje je preprosto:
+myStart = startIndexOf(rank);
+myEnd   = startIndexOf(rank + 1);
+\end{lstlisting}
+
+Primer z 10 delci in 3 procesi:
+\begin{center}
+\begin{tabular}{|c|c|c|}
+\hline
+\textbf{Rank} & \textbf{Delci} & \textbf{\v{S}tevilo} \\
+\hline
+0 & [0, 4) & 4 \\
+1 & [4, 7) & 3 \\
+2 & [7, 10) & 3 \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{Algoritem enega cikla}
+
+\begin{enumerate}
+    \item \textbf{Faza 1}: Vsak proces izra\v{c}una sile za \textbf{svoje} delce. Za izra\v{c}un potrebuje podatke \textbf{vseh} delcev (ki jih \v{z}e ima v \texttt{state}).
+
+    \item \textbf{Faza 2}: Vsak proces posodobi pozicije in hitrosti \textbf{samo svojih} delcev v \texttt{state}.
+
+    \item \textbf{Faza 3 -- Allgatherv}: Vsi procesi si izmenjajo posodobljene podatke.
+\end{enumerate}
+
+\subsection{Allgatherv -- klju\v{c}na MPI operacija}
+
+\begin{kljucno}
+\texttt{Allgatherv} = ``vsi zberejo vse, razli\v{c}ne koli\v{c}ine''.
+
+Vsak proces po\v{s}lje svoj del podatkov in prejme dele od vseh ostalih. Po klicu ima vsak proces \textbf{celoten posodobljen} \texttt{state}.
+\end{kljucno}
+
+\begin{lstlisting}
+MPI.COMM_WORLD.Allgatherv(
+    state, sendOffset, sendCount, MPI.DOUBLE,  // posiljam
+    state, 0, recvCounts, displacements, MPI.DOUBLE  // prejemam
+);
+\end{lstlisting}
+
+Parametri:
+\begin{itemize}
+    \item \texttt{sendOffset} -- za\v{c}etek mojih podatkov v polju
+    \item \texttt{sendCount} -- koliko doublov po\v{s}iljam
+    \item \texttt{recvCounts[]} -- koliko doublov pri\v{c}akujem od vsakega procesa
+    \item \texttt{displacements[]} -- kje v sprejemnem polju se za\v{c}nejo podatki vsakega procesa
+\end{itemize}
+
+\begin{figure}[h]
+\centering
+\begin{verbatim}
+Pred Allgatherv:
+  Rank 0: [x0 y0 ... | stari  | stari ]  <- posodobil svoj del
+  Rank 1: [stari  | x4 y4 ... | stari ]  <- posodobil svoj del
+  Rank 2: [stari  | stari  | x7 y7 ...]  <- posodobil svoj del
+
+Po Allgatherv:
+  Rank 0: [x0 y0 ... | x4 y4 ... | x7 y7 ...]  <- vsi novi
+  Rank 1: [x0 y0 ... | x4 y4 ... | x7 y7 ...]  <- vsi novi
+  Rank 2: [x0 y0 ... | x4 y4 ... | x7 y7 ...]  <- vsi novi
+\end{verbatim}
+\caption{Vizualizacija Allgatherv operacije}
+\end{figure}
+
+\begin{vprasanje}
+Zakaj ne uporabimo Scatter + Gather namesto Allgatherv?
+
+\textbf{Odgovor:} Pri Scatter/Gather bi samo rank 0 (master) imel celoten rezultat in bi ga moral ponovno razpo\v{s}ljati (Broadcast). Z \texttt{Allgatherv} \textbf{vsi} procesi hkrati prejmejo celotno posodobljeno stanje -- ena operacija namesto dveh. To je u\v{c}inkovitej\v{s}e.
+\end{vprasanje}
+
+\begin{vprasanje}
+Zakaj potrebuje vsak proces \textbf{vse} delce, ne le svoje?
+
+\textbf{Odgovor:} Ker sila na delec $i$ je vsota sil od \textbf{vseh} ostalih $n-1$ delcev. Delec na rank 0 \v{c}uti silo od delcev na rank 1, rank 2, itd. Brez poznavanja pozicij vseh delcev izra\v{c}un ni mo\v{z}en. To je inherentna lastnost N-body problema.
+\end{vprasanje}
+
+\subsection{Overhead porazdeljene verzije}
+
+Porazdeljena verzija je po\v{c}asnej\v{s}a od vzporedne zaradi:
+\begin{enumerate}
+    \item \textbf{Allgatherv vsak cikel} -- kopiranje $6n$ doublov med vsemi procesi
+    \item \textbf{MPI overhead} -- inicializacija, interna sinhronizacija
+    \item \textbf{Lo\v{c}en pomnilnik} -- ni mo\v{z}nosti deljenja podatkov brez komunikacije
+\end{enumerate}
+
+Vendar ima porazdeljena verzija prednost: lahko te\v{c}e na \textbf{ve\v{c} ra\v{c}unalnikih}, kar omogo\v{c}a skaliranje prek zmogljivosti enega stroja.
+
+%======================================================================
+\section{Primerjava implementacij}
+%======================================================================
+
+\begin{center}
+\begin{tabular}{|l|c|c|c|}
+\hline
+& \textbf{Sekvencna} & \textbf{Vzporedna} & \textbf{Porazdeljena} \\
+\hline
+Enot izvajanja & 1 nit & $T$ niti & $P$ procesov \\
+Pomnilnik & deljen & deljen & lo\v{c}en \\
+Komunikacija & / & deljen pomnilnik & MPI Allgatherv \\
+Sinhronizacija & / & \texttt{invokeAll} pregrada & \texttt{Allgatherv} \\
+Vstopna to\v{c}ka & SimulationRunner & SimulationRunner & DistributedRunner \\
+Zagon & \texttt{java ...} & \texttt{java ...} & \texttt{mpjrun.sh -np P} \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{Meritve}
+
+Meritve zaganjamo z \texttt{./benchmark.sh}. Vsaka nastavitev se izvede ve\v{c}krat, poro\v{c}amo najkraj\v{s}i \v{c}as (druga dejavnost na ra\v{c}unalniku lahko \v{c}as samo pove\v{c}a, nikoli zmanj\v{s}a).
+
+\textbf{2000 delcev, 1000 ciklov:}
+\begin{center}
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Na\v{c}in} & \textbf{\v{C}as [s]} & \textbf{Pohitritev} \\
+\hline
+Sekvencna & 6.94 & 1.0$\times$ \\
+Porazdeljena (4 proc.) & 2.56 & 2.7$\times$ \\
+Porazdeljena (10 proc.) & 2.39 & 2.9$\times$ \\
+Vzporedna (10 niti) & \textbf{1.45} & \textbf{4.8$\times$} \\
+\hline
+\end{tabular}
+\end{center}
+
+\textbf{3000 delcev, 1000 ciklov:}
+\begin{center}
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Na\v{c}in} & \textbf{\v{C}as [s]} & \textbf{Pohitritev} \\
+\hline
+Sekvencna & 15.67 & 1.0$\times$ \\
+Porazdeljena (4 proc.) & 7.72 & 2.0$\times$ \\
+Porazdeljena (10 proc.) & 5.42 & 2.9$\times$ \\
+Vzporedna (10 niti) & \textbf{4.16} & \textbf{3.8$\times$} \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{kljucno}
+\textbf{Vzporedna je vedno najhitrej\v{s}a na enem ra\v{c}unalniku}, in to je pri\v{c}akovano: obe razli\v{c}ici razdelita enako delo med enako \v{s}tevilo izvajalcev, a porazdeljena mora vsak cikel \v{s}e prekopirati stanje med procesi.
+
+Zanimivej\v{s}i je \textbf{trend}. Zaostanek porazdeljene razli\v{c}ice (10 proc.) za vzporedno pada z velikostjo problema:
+\begin{center}
+\begin{tabular}{|c|c|}
+\hline
+$n$ & Porazdeljena po\v{c}asnej\v{s}a za \\
+\hline
+500  & 278\,\% \\
+1000 & 71\,\% \\
+2000 & 64\,\% \\
+3000 & 30\,\% \\
+\hline
+\end{tabular}
+\end{center}
+Razlog: komunikacija raste kot $O(n)$, ra\v{c}unanje pa kot $O(n^2)$. Ve\v{c}ji kot je problem, manj\v{s}i dele\v{z} \v{c}asa gre za komunikacijo.
+\end{kljucno}
+
+\begin{vprasanje}
+Zakaj je pri $n = 500$ porazdeljena z 10 procesi po\v{c}asnej\v{s}a od \textbf{sekvencne} (pohitritev 0{,}72$\times$)?
+
+\textbf{Odgovor:} Pri 500 delcih je ra\v{c}unanja na cikel tako malo, da 1000 klicev \texttt{Allgatherv} prevlada nad celotnim \v{c}asom izvajanja. Komunikacijski stro\v{s}ek je ve\v{c}ji od prihranka pri ra\v{c}unanju. To je najlep\v{s}i primer v na\v{s}ih podatkih, da paralelizacija ni brezpla\v{c}na.
+\end{vprasanje}
+
+\begin{vprasanje}
+Zakaj je pri $n = 500$ bolje uporabiti 4 procese kot 10?
+
+\textbf{Odgovor:} Manj procesov pomeni cenej\v{s}o kolektivno operacijo. Pri $n = 500$ so 4 procesi hitrej\v{s}i (0{,}25\,s proti 0{,}61\,s), pri $n = 3000$ pa 10 procesov (5{,}42\,s proti 7{,}72\,s) -- takrat je ra\v{c}unanja dovolj, da se dodatni procesi izpla\v{c}ajo.
+\end{vprasanje}
+
+%======================================================================
+\section{Na\v{c}rtovalski vzorci}
+%======================================================================
+
+\begin{enumerate}
+    \item \textbf{Strategy} -- vmesnik \texttt{Simulation} z razli\v{c}nimi implementacijami. \texttt{SimulationRunner} ne ve, katera implementacija te\v{c}e.
+
+    \item \textbf{Factory} -- \texttt{SimulationFactory.createSimulation(mode)} ustvari pravilno implementacijo glede na izbrani na\v{c}in.
+
+    \item \textbf{SPMD} (Single Program, Multiple Data) -- pri porazdeljeni verziji vsi procesi zazenejo isti program (\texttt{DistributedRunner}), a obdelajo razli\v{c}ne podatke glede na svoj rang.
+\end{enumerate}
+
+%======================================================================
+\section{Zagon programa}
+%======================================================================
+
+\subsection{Zagonske skripte}
+
+Vsi trije na\v{c}ini se za\v{z}enejo z eno skripto na na\v{c}in. Skripte same poi\v{s}\v{c}ejo \texttt{JAVA\_HOME} in \texttt{MPJ\_HOME} (prek skupne \texttt{setup\_env.sh}) in prevedejo projekt.
+
+\begin{verbatim}
+./run_sequential.sh                  # sekvencno, z graficnim vmesnikom
+./run_parallel.sh                    # vzporedno
+./run_distributed.sh 4               # porazdeljeno, 4 MPI procesi
+
+# Meritev brez izrisa
+./run_distributed.sh 4 --particles 2000 --cycles 1000 --ui false
+
+# Vse meritve iz porocila naenkrat
+./benchmark.sh
+\end{verbatim}
+
+\subsection{Argumenti}
+Opcije so pri vseh treh skriptah \textbf{enake} -- bere jih ista metoda \texttt{SimulationParameters.fromArgs()}.
+\begin{center}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Argument} & \textbf{Opis} & \textbf{Privzeto} \\
+\hline
+\texttt{--mode} & sequential $|$ parallel & sequential \\
+\texttt{--particles N} & \v{s}tevilo delcev & 400 \\
+\texttt{--cycles N} & \v{s}tevilo ciklov & 1000 \\
+\texttt{--ui true|false} & graficni vmesnik & true \\
+\texttt{--window W H} & velikost okna & 800 600 \\
+\texttt{--bounds x1 x2 y1 y2} & meje prostora & 0 800 0 600 \\
+\texttt{--fps N} & hitrost osve\v{z}evanja & 60 \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{Preverjanje pravilnosti}
+Ker vsi na\v{c}ini startajo iz istega seeda, morajo dati \textbf{enak} rezultat:
+\begin{verbatim}
+./run_sequential.sh    --particles 500 --cycles 300 --ui false
+./run_parallel.sh      --particles 500 --cycles 300 --ui false
+./run_distributed.sh 4 --particles 500 --cycles 300 --ui false
+\end{verbatim}
+Izpisanih pet delcev na koncu se mora v vseh treh primerih ujemati do zadnje decimalke.
+
+\subsection{Porazdeljeni na\v{c}in iz graficnega vmesnika}
+V oknu izberemo na\v{c}in \textbf{Porazdeljena (MPI)}; pojavi se polje \textbf{Procesi}. Klik na \textbf{Start} pока\v{z}e ukaz, ki bo izveden, in po potrditvi zaz\v{e}ne \texttt{run\_distributed.sh} -- ta odpre \textbf{novo okno}, v katerem te\v{c}e porazdeljena simulacija.
+
+\begin{vprasanje}
+Zakaj se porazdeljeni na\v{c}in ne izvede kar v istem oknu?
+
+\textbf{Odgovor:} Ker potrebuje \textbf{ve\v{c} lo\v{c}enih procesov}, ki jih mora zagnati \texttt{mpjrun.sh}. Obstoje\v{c}i proces se ne more sam ``razmno\v{z}iti'' v MPI skupino -- MPI okolje mora obstajati \v{z}e ob zagonu programa (\texttt{MPI.Init()} je prvi klic v \texttt{DistributedRunner}).
+\end{vprasanje}
+
+%======================================================================
+\section{Pogosta vpra\v{s}anja za zagovor}
+%======================================================================
+
+\begin{vprasanje}
+Kako zagotovite, da vse tri verzije dajo enake rezultate?
+
+\textbf{Odgovor:} Vse tri verzije uporabljajo enak seed (42) za generiranje za\v{c}etnih delcev, isto ra\v{c}unsko jedro (\texttt{ForceKernel}) in enak dvofazni algoritem. Razlika je samo v tem, \textbf{kdo} izra\v{c}una katere sile -- rezultat je enak, ker je vsota sil neodvisna od vrstnega reda se\v{s}tevanja (do numeri\v{c}ne natan\v{c}nosti).
+\end{vprasanje}
+
+\begin{vprasanje}
+Kaj je Amdahlov zakon in kako vpliva na va\v{s}o simulacijo?
+
+\textbf{Odgovor:} Amdahlov zakon pravi, da je pohitritev omejena z dele\v{z}em kode, ki \textbf{mora} te\v{c}i sekvencno. V na\v{s}em primeru je Faza 2 (posodobitev, $O(n)$) sekvencna, a je zanemarljivo majhna v primerjavi s Fazo 1 ($O(n^2)$), zato se dobro skaliramo.
+\end{vprasanje}
+
+\begin{vprasanje}
+Zakaj je porazdeljena verzija po\v{c}asnej\v{s}a od vzporedne?
+
+\textbf{Odgovor:} Vzporedna verzija deli pomnilnik -- niti direktno berejo isti seznam delcev brez kopiranja. Porazdeljena verzija mora vsak cikel izvesti Allgatherv, ki kopira $6 \cdot n$ doublov med vsemi procesi. Ta komunikacijski overhead je \v{s}e posebej izrazit pri lokalnem zagonu (multicore), kjer ni dejanske mre\v{z}ne prednosti.
+\end{vprasanje}
+
+\begin{vprasanje}
+Kdaj bi bila porazdeljena verzija hitrej\v{s}a od vzporedne?
+
+\textbf{Odgovor:} Ko imamo \textbf{ve\v{c} ra\v{c}unalnikov} -- na primer 4 ra\v{c}unalnike z vsak 10 jedri. Vzporedna verzija je omejena na 10 niti enega ra\v{c}unalnika, porazdeljena pa bi uporabila $4 \times 10 = 40$ jeder.
+\end{vprasanje}
+
+\begin{vprasanje}
+Kako bi izbolj\v{s}ali \v{c}asovno kompleksnost?
+
+\textbf{Odgovor:} Z uporabo \textbf{prostorskega particioniranja} (Barnes-Hut algoritem s quadtree), ki zmanj\v{s}a kompleksnost iz $O(n^2)$ na $O(n \log n)$. Delce, ki so dale\v{c} stran, obravnavamo kot eno skupino namesto posamezno.
+\end{vprasanje}
+
+\begin{vprasanje}
+Zakaj GUI te\v{c}e neodvisno od simulacije?
+
+\textbf{Odgovor:} Izris poteka v lo\v{c}enem timerju (Swing Timer na EDT -- Event Dispatch Thread), simulacija pa v svoji niti. Tako GUI ne blokira izra\v{c}una in ostaja odziven. \v{C}e bi izra\v{c}un tekel na EDT, bi bil vmesnik zamrznjen.
+\end{vprasanje}
+
+\begin{vprasanje}
+Zakaj se niti v ParallelSimulation ne ``stepejo na prste'' pri pisanju v forces[]?
+
+\textbf{Odgovor:} Ker vsaka nit pi\v{s}e v \textbf{ekskluziven del} polja. Nit $t$ pi\v{s}e samo v indekse $[t \cdot \text{chunkSize}, (t+1) \cdot \text{chunkSize})$. Nobena druga nit ne pi\v{s}e v iste indekse. To je primer \textbf{prostorske dekompozicije} brez potrebe po zaklepanju.
+\end{vprasanje}
+
+\begin{vprasanje}
+Kako zagotovite, da primerjate paralelizacijo in ne razlik med implementacijami?
+
+\textbf{Odgovor:} Vsi trije na\v{c}ini kli\v{c}ejo \textbf{isti metodi} \texttt{ForceKernel.computeForces()} in \texttt{ForceKernel.integrate()} nad \textbf{isto podatkovno postavitvijo}, in te\v{c}ejo v \textbf{isti zanki} \texttt{SimulationRunner.runCycles()}. Razlikujejo se samo v mejah obmo\v{c}ja, ki ga dobi vsak izvajalec, in v na\v{c}inu sinhronizacije na koncu cikla. \v{C}e bi vsak na\v{c}in imel svojo kopijo fizike, bi izmerjena razmerja odra\v{z}ala razlike med temi kopijami in ne u\v{c}inka paralelizacije.
+\end{vprasanje}
+
+\begin{vprasanje}
+Zakaj so rezultati vseh treh na\v{c}inov \textbf{popolnoma} enaki, ne le pribli\v{z}no?
+
+\textbf{Odgovor:} Sile na delec $i$ se v vseh na\v{c}inih se\v{s}tevajo v \textbf{istem vrstnem redu} ($j = 0 \ldots n$), saj vsak izvajalec za svoj delec vedno pregleda vse delce po nara\v{s}\v{c}ajo\v{c}em indeksu. Ker se se\v{s}tevanje v plavajo\v{c}i vejici nikjer ne prerazporedi, ni razlik niti v zadnjem bitu. Razdelitev dela vpliva na to, \textbf{kdo} ra\v{c}una, ne na to, \textbf{v kak\v{s}nem vrstnem redu} se\v{s}teva.
+\end{vprasanje}
+
+\begin{vprasanje}
+Zakaj pohitritev ne dose\v{z}e 10$\times$ na 10-jedrnem procesorju?
+
+\textbf{Odgovor:} Apple M4 ima \textbf{4 zmogljiva (P) in 6 var\v{c}nih (E) jeder}. Prve \v{s}tiri niti dobijo P-jedra in prispevajo skoraj polno zmogljivost, naslednjih \v{s}est pa E-jedra, ki so bistveno po\v{c}asnej\v{s}a. Ker so kosi \textbf{enako veliki} in je na koncu vsakega cikla pregrada, vsi \v{c}akajo na najpo\v{c}asnej\v{s}ega. Zato u\v{c}inkovitost pri 4 izvajalcih (51--73\,\%) mo\v{c}no presega u\v{c}inkovitost pri 10 izvajalcih (22--29\,\%).
+\end{vprasanje}
+
+\end{document}
