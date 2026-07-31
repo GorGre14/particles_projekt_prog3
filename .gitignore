@@ -28,3 +28,7 @@ dependency-reduced-pom.xml
 
 # Zastareli rezultati (nadomesca jih benchmark_results.csv)
 benchmark_results.json
+
+# Osebna priprava na zagovor - ne za oddajo/repo
+study_guide.*
+study_material/
