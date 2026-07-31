@@ -1,213 +1,94 @@
 package com.example.chargedparticles.simulation;
 
 import com.example.chargedparticles.model.Particle;
-import mpi.*;
+import mpi.MPI;
+import mpi.MPIException;
 
 import java.util.List;
 
 /**
- * Porazdeljena simulacija naelektrenih delcev z uporabo MPJ Express.
+ * Porazdeljena simulacija z MPJ Express (MPI za Javo).
  *
- * Strategija porazdelitve:
- * - Vsak MPI proces dobi podnabor delcev za izracun sil.
- * - Vsi procesi imajo kopijo VSEH delcev (potrebno za izracun sil).
- * - Po izracunu sil in posodobitvi pozicij se uporabi Allgatherv
- *   za sinhronizacijo posodobljenih podatkov med vsemi procesi.
+ * Vsak proces hrani kopijo stanja vseh delcev, izracuna pa sile in nove
+ * pozicije samo za svoj odsek. Na koncu cikla kolektivna operacija Allgatherv
+ * zdruzi odseke, tako da imajo vsi procesi spet celotno stanje.
  *
- * Podatki delcev so shranjeni v ravnem double[] polju za MPI komunikacijo:
- *   [x, y, vx, vy, charge, mass] -> 6 doublov na delec
+ * V nasprotju z vzporednim nacinom si procesi ne delijo pomnilnika, zato je
+ * treba stanje ob vsakem ciklu eksplicitno prenesti. Ta prenos je cena
+ * porazdeljenega modela.
  */
-public class DistributedSimulation {
+public class DistributedSimulation extends AbstractSimulation {
 
-    // Stevilo double vrednosti na delec
-    private static final int FIELDS_PER_PARTICLE = 6;
+    private final int rank;         // rang tega procesa
+    private final int size;         // skupno stevilo procesov
+    private final int myStart;      // prvi delec tega procesa (vkljucno)
+    private final int myEnd;        // zadnji delec tega procesa (izkljucno)
 
-    private final int rank;           // Rang trenutnega procesa
-    private final int size;           // Skupno stevilo procesov
-    private final int myStart;        // Zacetni indeks delcev za ta proces
-    private final int myEnd;          // Koncni indeks (ekskluzivno)
-    private final int totalParticles;
-
-    // Ravno polje z vsemi podatki delcev
-    private double[] allData;
-
-    // Polja za Allgatherv komunikacijo
+    // Opis odsekov za Allgatherv: koliko doublov poslje in kam jih vpise vsak proces.
     private final int[] recvCounts;
     private final int[] displacements;
 
-    /**
-     * Konstruktor za porazdeljeno simulacijo.
-     *
-     * @param particles  seznam delcev (enak na vseh procesih)
-     * @param rank       rang trenutnega MPI procesa
-     * @param size       skupno stevilo MPI procesov
-     */
-    public DistributedSimulation(List<Particle> particles, int rank, int size) {
+    public DistributedSimulation(List<Particle> particles, SimulationParameters params,
+                                 int rank, int size) {
+        super(particles, params);
         this.rank = rank;
         this.size = size;
-        this.totalParticles = particles.size();
+        this.myStart = startIndexOf(rank);
+        this.myEnd = startIndexOf(rank + 1);
 
-        // === Razdelitev delcev med procese ===
-        // Procesi z rangom < remainder dobijo en delec vec
-        int baseCount = totalParticles / size;
-        int remainder = totalParticles % size;
-
-        if (rank < remainder) {
-            myStart = rank * (baseCount + 1);
-            myEnd = myStart + baseCount + 1;
-        } else {
-            myStart = remainder * (baseCount + 1) + (rank - remainder) * baseCount;
-            myEnd = myStart + baseCount;
-        }
-
-        // === Inicializacija ravnega polja iz seznama delcev ===
-        allData = new double[totalParticles * FIELDS_PER_PARTICLE];
-        for (int i = 0; i < totalParticles; i++) {
-            Particle p = particles.get(i);
-            int offset = i * FIELDS_PER_PARTICLE;
-            allData[offset]     = p.getX();
-            allData[offset + 1] = p.getY();
-            allData[offset + 2] = p.getVx();
-            allData[offset + 3] = p.getVy();
-            allData[offset + 4] = p.getCharge();
-            allData[offset + 5] = p.getMass();
-        }
-
-        // === Priprava podatkov za Allgatherv ===
-        // Vsak proces poslje razlicno stevilo elementov
-        recvCounts = new int[size];
-        displacements = new int[size];
+        this.recvCounts = new int[size];
+        this.displacements = new int[size];
         for (int r = 0; r < size; r++) {
-            int rStart, rEnd;
-            if (r < remainder) {
-                rStart = r * (baseCount + 1);
-                rEnd = rStart + baseCount + 1;
-            } else {
-                rStart = remainder * (baseCount + 1) + (r - remainder) * baseCount;
-                rEnd = rStart + baseCount;
-            }
-            recvCounts[r] = (rEnd - rStart) * FIELDS_PER_PARTICLE;
-            displacements[r] = rStart * FIELDS_PER_PARTICLE;
+            int start = startIndexOf(r);
+            recvCounts[r] = (startIndexOf(r + 1) - start) * ForceKernel.FIELDS_PER_PARTICLE;
+            displacements[r] = start * ForceKernel.FIELDS_PER_PARTICLE;
         }
     }
 
     /**
-     * Izvede en cikel porazdeljene simulacije.
-     *
-     * Algoritem:
-     * 1. Vsak proces izracuna sile za svoje delce (proti vsem delcem)
-     * 2. Vsak proces posodobi pozicije in hitrosti svojih delcev
-     * 3. Allgatherv sinhronizira posodobljene podatke med vsemi procesi
+     * Zacetni indeks delcev za proces r. Prvih (n mod size) procesov dobi
+     * en delec vec, da je delitev cim bolj enakomerna.
+     * Za r == size vrne n, zato je konec odseka r kar startIndexOf(r + 1).
      */
-    public void performOneCycle(SimulationParameters params) throws MPIException {
-        int myCount = myEnd - myStart;
-        double[][] forces = new double[myCount][2];
-
-        // === FAZA 1: Izracun sil za delce tega procesa ===
-        for (int i = 0; i < myCount; i++) {
-            int globalI = myStart + i;
-            int offsetI = globalI * FIELDS_PER_PARTICLE;
-
-            double x1 = allData[offsetI];
-            double y1 = allData[offsetI + 1];
-            double c1 = allData[offsetI + 4];
-
-            double fxSum = 0.0;
-            double fySum = 0.0;
-
-            // Sila od vseh ostalih delcev
-            for (int j = 0; j < totalParticles; j++) {
-                if (j == globalI) continue;
-
-                int offsetJ = j * FIELDS_PER_PARTICLE;
-                double x2 = allData[offsetJ];
-                double y2 = allData[offsetJ + 1];
-                double c2 = allData[offsetJ + 4];
-
-                // Coulombova sila (enako kot ForceUtils)
-                double dx = x2 - x1;
-                double dy = y2 - y1;
-                double r2 = dx * dx + dy * dy;
-                if (r2 < 1.0) r2 = 1.0;
-                double r = Math.sqrt(r2);
-
-                double magnitude = Math.abs(c1 * c2) / r2;
-                double sign = (c1 * c2 >= 0) ? 1.0 : -1.0;
-
-                fxSum += sign * magnitude * (dx / r);
-                fySum += sign * magnitude * (dy / r);
-            }
-
-            // Mejna sila
-            double buffer = 5.0;
-            double repelFactor = 10.0;
-
-            if (x1 < params.getMinX() + buffer) {
-                double dist = Math.max(0.1, x1 - params.getMinX());
-                fxSum += repelFactor / (dist * dist);
-            }
-            if (x1 > params.getMaxX() - buffer) {
-                double dist = Math.max(0.1, params.getMaxX() - x1);
-                fxSum -= repelFactor / (dist * dist);
-            }
-            if (y1 < params.getMinY() + buffer) {
-                double dist = Math.max(0.1, y1 - params.getMinY());
-                fySum += repelFactor / (dist * dist);
-            }
-            if (y1 > params.getMaxY() - buffer) {
-                double dist = Math.max(0.1, params.getMaxY() - y1);
-                fySum -= repelFactor / (dist * dist);
-            }
-
-            forces[i][0] = fxSum;
-            forces[i][1] = fySum;
-        }
-
-        // === FAZA 2: Posodobitev pozicij za delce tega procesa ===
-        for (int i = 0; i < myCount; i++) {
-            int globalI = myStart + i;
-            int offset = globalI * FIELDS_PER_PARTICLE;
-
-            double mass = allData[offset + 5];
-            double ax = forces[i][0] / mass;
-            double ay = forces[i][1] / mass;
-
-            double newVx = allData[offset + 2] + ax;
-            double newVy = allData[offset + 3] + ay;
-
-            allData[offset]     += newVx;  // x = x + vx
-            allData[offset + 1] += newVy;  // y = y + vy
-            allData[offset + 2] = newVx;   // vx
-            allData[offset + 3] = newVy;   // vy
-        }
-
-        // === FAZA 3: Sinhronizacija med vsemi procesi ===
-        // Vsak proces poslje svoje posodobljene delce, prejme vse
-        int sendOffset = myStart * FIELDS_PER_PARTICLE;
-        int sendCount = (myEnd - myStart) * FIELDS_PER_PARTICLE;
-
-        MPI.COMM_WORLD.Allgatherv(
-                allData, sendOffset, sendCount, MPI.DOUBLE,
-                allData, 0, recvCounts, displacements, MPI.DOUBLE
-        );
+    private int startIndexOf(int r) {
+        int base = n / size;
+        int remainder = n % size;
+        return (r < remainder) ? r * (base + 1)
+                               : remainder * (base + 1) + (r - remainder) * base;
     }
 
-    /**
-     * Zapise podatke iz ravnega polja nazaj v seznam Particle objektov.
-     * Uporabljeno za prikaz v UI.
-     */
-    public void writeBackToParticles(List<Particle> particles) {
-        for (int i = 0; i < totalParticles; i++) {
-            int offset = i * FIELDS_PER_PARTICLE;
-            Particle p = particles.get(i);
-            p.setX(allData[offset]);
-            p.setY(allData[offset + 1]);
-            p.setVx(allData[offset + 2]);
-            p.setVy(allData[offset + 3]);
+    @Override
+    public void performOneCycle() {
+        // FAZA 1 + 2: izracun sil in novih pozicij za lasten odsek.
+        ForceKernel.computeForces(state, n, myStart, myEnd, forces, params);
+        ForceKernel.integrate(state, myStart, myEnd, forces);
+
+        // FAZA 3: vsak proces poslje svoj odsek in prejme odseke vseh ostalih.
+        int sendOffset = myStart * ForceKernel.FIELDS_PER_PARTICLE;
+        int sendCount = (myEnd - myStart) * ForceKernel.FIELDS_PER_PARTICLE;
+        try {
+            MPI.COMM_WORLD.Allgatherv(
+                    state, sendOffset, sendCount, MPI.DOUBLE,
+                    state, 0, recvCounts, displacements, MPI.DOUBLE);
+        } catch (MPIException e) {
+            throw new IllegalStateException("Napaka pri MPI komunikaciji", e);
         }
     }
 
-    public int getRank() { return rank; }
-    public int getMyStart() { return myStart; }
-    public int getMyEnd() { return myEnd; }
+    @Override
+    public String getDescription() {
+        return "Porazdeljena (" + size + " procesov)";
+    }
+
+    public int getRank() {
+        return rank;
+    }
+
+    public int getMyStart() {
+        return myStart;
+    }
+
+    public int getMyEnd() {
+        return myEnd;
+    }
 }

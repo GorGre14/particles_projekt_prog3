@@ -1,34 +1,92 @@
 package com.example.chargedparticles;
 
 import com.example.chargedparticles.model.Particle;
-import com.example.chargedparticles.simulation.*;
+import com.example.chargedparticles.simulation.Simulation;
+import com.example.chargedparticles.simulation.SimulationFactory;
+import com.example.chargedparticles.simulation.SimulationMode;
+import com.example.chargedparticles.simulation.SimulationParameters;
 import com.example.chargedparticles.ui.SimulationUI;
 
-import javax.swing.*;
+import javax.swing.JFrame;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 /**
- * Glavna vstopna tocka za simulacijo naelektrenih delcev.
- * Inicializira parametre, ustvari delce, pozene simulacijo in prikaze UI.
- * Podpira sekvencni in vzporedni nacin (porazdeljeni nacin se zazene preko DistributedRunner).
+ * Vstopna tocka za sekvencni in vzporedni nacin simulacije.
+ *
+ * Razred vsebuje tudi skupno simulacijsko zanko in generator delcev, ki ju
+ * uporablja tudi {@link DistributedRunner}, tako da vsi trije nacini tecejo
+ * po istem postopku in nad istim zacetnim stanjem.
  */
 public class SimulationRunner {
 
-    // Javne reference za dostop iz UI
-    public static Thread simulationThread;
-    public static Simulation simulation;
-    public static List<Particle> particles;
-    public static SimulationParameters params;
-
-    // Deterministicen seed za ponovljive rezultate
+    /** Fiksen seed zagotavlja, da vsi nacini startajo iz enakega stanja. */
     public static final long RANDOM_SEED = 42L;
 
+    /** Upocasnitev izrisa, da je gibanje delcev vidno (v milisekundah). */
+    private static final long UI_FRAME_DELAY_MS = 10;
+
+    // Trenutna simulacija; graficni vmesnik jo lahko ustavi in znova zazene.
+    private static Thread simulationThread;
+    private static Simulation simulation;
+    private static List<Particle> particles;
+    private static SimulationParameters params;
+
     /**
-     * Ponovno zazene simulacijo z trenutnimi parametri.
-     * Ustavi prejsnjo simulacijo, ce se izvaja.
+     * Izvede zahtevano stevilo ciklov in izpise rezultat.
+     * Uporabljajo jo vsi trije nacini simulacije.
+     *
+     * @param printResults ali naj ta proces izpise rezultat (pri MPI samo rang 0)
      */
+    public static void runCycles(Simulation simulation, List<Particle> particles,
+                                 SimulationParameters params, boolean printResults) {
+        long startTime = System.nanoTime();
+
+        for (int cycle = 0; cycle < params.getNumCycles(); cycle++) {
+            if (Thread.currentThread().isInterrupted()) {
+                return;
+            }
+            simulation.performOneCycle();
+
+            // Za izris moramo stanje prepisati v Particle objekte.
+            if (params.isEnableUI()) {
+                simulation.syncToParticles(particles);
+                try {
+                    Thread.sleep(UI_FRAME_DELAY_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+
+        double elapsedSeconds = (System.nanoTime() - startTime) / 1e9;
+
+        if (printResults) {
+            simulation.syncToParticles(particles);
+            System.out.println("Simulacija zakljucena (" + simulation.getDescription() + "):");
+            System.out.printf(" - Stevilo delcev: %d%n", params.getNumParticles());
+            System.out.printf(" - Stevilo ciklov: %d%n", params.getNumCycles());
+            System.out.printf(" - Cas izvajanja: %.3f s%n", elapsedSeconds);
+            for (int i = 0; i < Math.min(5, particles.size()); i++) {
+                System.out.println("Delec " + i + ": " + particles.get(i));
+            }
+        }
+    }
+
+    /** Generira delce iz fiksnega seeda, zato je zacetno stanje vedno enako. */
+    public static List<Particle> generateParticles(SimulationParameters params) {
+        List<Particle> list = new ArrayList<>();
+        Random random = new Random(RANDOM_SEED);
+        for (int i = 0; i < params.getNumParticles(); i++) {
+            list.add(Particle.randomParticle(params.getMinX(), params.getMaxX(),
+                    params.getMinY(), params.getMaxY(), random));
+        }
+        return list;
+    }
+
+    /** Ustavi tekoco simulacijo in sprosti njene vire. */
     public static void stopSimulation() {
         if (simulationThread != null && simulationThread.isAlive()) {
             simulationThread.interrupt();
@@ -43,182 +101,85 @@ public class SimulationRunner {
         }
     }
 
+    /**
+     * Ustavi morebitno tekoco simulacijo, ponastavi delce na zacetno stanje in
+     * zazene nov tek v locenih niti, da graficni vmesnik ostane odziven.
+     */
     public static void restartSimulation() {
         stopSimulation();
 
-        // Ustvarimo novo simulacijo glede na nacin
-        simulation = SimulationFactory.createSimulation(params.getSimulationMode());
+        particles.clear();
+        particles.addAll(generateParticles(params));
 
-        // Zazenemo simulacijsko nit
-        simulationThread = new Thread(() -> {
-            long startTime = System.nanoTime();
-            int numCycles = params.getNumCycles();
-
-            for (int cycle = 0; cycle < numCycles; cycle++) {
-                // Preverimo prekinitev
-                if (Thread.currentThread().isInterrupted()) {
-                    break;
-                }
-
-                // Izvedemo en cikel simulacije
-                simulation.performOneCycle(particles, params);
-
-                // Upocasnitev za vizualizacijo (ce je UI vklopljen)
-                if (params.isEnableUI()) {
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-            }
-
-            // Izpis rezultatov
-            long endTime = System.nanoTime();
-            double elapsedSeconds = (endTime - startTime) / 1e9;
-            System.out.println("Simulacija zakljucena (" + simulation.getDescription() + "):");
-            System.out.printf(" - Stevilo delcev: %d%n", params.getNumParticles());
-            System.out.printf(" - Stevilo ciklov: %d%n", numCycles);
-            System.out.printf(" - Cas izvajanja: %.3f s%n", elapsedSeconds);
-
-            // Izpis prvih 5 delcev
-            for (int i = 0; i < Math.min(5, particles.size()); i++) {
-                System.out.println("Delec " + i + ": " + particles.get(i));
-            }
-        });
+        simulation = SimulationFactory.createSimulation(params.getSimulationMode(), particles, params);
+        simulationThread = new Thread(
+                () -> runCycles(simulation, particles, params, true),
+                "simulacija");
         simulationThread.start();
     }
 
-    /**
-     * Generira seznam delcev z deterministicnim seed-om.
-     */
-    public static List<Particle> generateParticles(int numParticles,
-            double minX, double maxX, double minY, double maxY) {
-        List<Particle> list = new ArrayList<>();
-        Random random = new Random(RANDOM_SEED);
-
-        for (int i = 0; i < numParticles; i++) {
-            list.add(Particle.randomParticle(minX, maxX, minY, maxY, random));
-        }
-        return list;
-    }
-
     public static void main(String[] args) {
-        // Privzete vrednosti
-        boolean enableUI = true;
-        int windowW = 800;
-        int windowH = 600;
-        int numParticles = 400;
-        int numCycles = 1000;
-        double minX = 0.0, maxX = 800.0;
-        double minY = 0.0, maxY = 600.0;
-        int fps = 60;
-        SimulationMode simulationMode = SimulationMode.SEQUENTIAL;
-
-        // Parsanje argumentov iz ukazne vrstice
-        for (int i = 0; i < args.length; i++) {
-            switch (args[i]) {
-                case "--ui":
-                    enableUI = Boolean.parseBoolean(args[++i]);
-                    break;
-                case "--window":
-                    windowW = Integer.parseInt(args[++i]);
-                    windowH = Integer.parseInt(args[++i]);
-                    break;
-                case "--particles":
-                    numParticles = Integer.parseInt(args[++i]);
-                    break;
-                case "--cycles":
-                    numCycles = Integer.parseInt(args[++i]);
-                    break;
-                case "--bounds":
-                    minX = Double.parseDouble(args[++i]);
-                    maxX = Double.parseDouble(args[++i]);
-                    minY = Double.parseDouble(args[++i]);
-                    maxY = Double.parseDouble(args[++i]);
-                    break;
-                case "--fps":
-                    fps = Integer.parseInt(args[++i]);
-                    break;
-                case "--mode":
-                    String modeStr = args[++i];
-                    SimulationMode mode = SimulationMode.fromCommandLineArg(modeStr);
-                    if (mode != null) {
-                        if (mode == SimulationMode.DISTRIBUTED) {
-                            System.err.println("Porazdeljeni nacin se zazene z DistributedRunner in mpjrun.sh");
-                            System.exit(1);
-                        }
-                        simulationMode = mode;
-                    } else {
-                        System.err.println("Neznan nacin simulacije: " + modeStr);
-                        System.exit(1);
-                    }
-                    break;
-                case "--help":
-                case "-h":
-                    printUsage();
-                    System.exit(0);
-                    break;
-                default:
-                    System.err.println("Neznan argument: " + args[i]);
-                    printUsage();
-                    System.exit(1);
-            }
+        try {
+            params = SimulationParameters.fromArgs(args);
+        } catch (IllegalArgumentException e) {
+            System.err.println(e.getMessage());
+            printUsage();
+            System.exit(1);
+            return;
         }
 
-        // Inicializacija parametrov
-        params = new SimulationParameters(enableUI, windowW, windowH,
-                numParticles, numCycles, minX, maxX, minY, maxY, fps, simulationMode);
-
-        // Generiranje delcev
-        particles = generateParticles(numParticles, minX, maxX, minY, maxY);
-
-        // Ustvarjanje UI (ce je vklopljen)
-        if (enableUI) {
-            SimulationUI simUI = new SimulationUI(particles, params);
-            JFrame frame = new JFrame("Simulacija naelektrenih delcev");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.add(simUI);
-            frame.pack();
-            frame.setVisible(true);
-            simUI.startRendering();
+        if (params.getSimulationMode() == SimulationMode.DISTRIBUTED) {
+            System.err.println("Porazdeljeni nacin zazenite z ./run_distributed.sh <stevilo_procesov>");
+            System.exit(1);
+            return;
         }
 
-        // Zagon simulacije
+        particles = generateParticles(params);
+
+        if (params.isEnableUI()) {
+            showWindow(new SimulationUI(particles, params), "Simulacija naelektrenih delcev");
+        }
+
         restartSimulation();
 
-        // Ce ni UI, pocakamo na zakljucek in koncamo
-        if (!enableUI && simulationThread != null) {
+        // Brez vmesnika pocakamo na zakljucek in koncamo.
+        if (!params.isEnableUI()) {
             try {
                 simulationThread.join();
-                if (simulation != null) {
-                    simulation.shutdown();
-                }
-                System.exit(0);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+            simulation.shutdown();
+            System.exit(0);
         }
     }
 
-    private static void printUsage() {
+    /** Odpre okno s podanim vmesnikom in zacne izris. */
+    public static void showWindow(SimulationUI ui, String title) {
+        JFrame frame = new JFrame(title);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.add(ui);
+        frame.pack();
+        frame.setVisible(true);
+        ui.startRendering();
+    }
+
+    /** Skupna navodila za vse tri nacine. */
+    public static void printUsage() {
         System.out.println("Simulacija naelektrenih delcev");
-        System.out.println("Uporaba: java -jar ChargedParticles.jar [opcije]");
         System.out.println();
         System.out.println("Opcije:");
-        System.out.println("  --ui <true|false>     Vklopi/izklopi GUI (privzeto: true)");
-        System.out.println("  --window <W> <H>      Velikost okna (privzeto: 800 600)");
-        System.out.println("  --particles <N>       Stevilo delcev (privzeto: 400)");
-        System.out.println("  --cycles <N>          Stevilo ciklov (privzeto: 1000)");
-        System.out.println("  --bounds <x1> <x2> <y1> <y2>  Meje simulacije");
-        System.out.println("  --fps <N>             Hitrost osvezevanja (privzeto: 60)");
-        System.out.println("  --mode <mode>         Nacin: sequential | parallel");
-        System.out.println();
-        System.out.println("Za porazdeljeni nacin uporabite DistributedRunner z mpjrun.sh");
+        System.out.println("  --mode <sequential|parallel>  Nacin izvajanja (privzeto: sequential)");
+        System.out.println("  --particles <N>               Stevilo delcev (privzeto: 400)");
+        System.out.println("  --cycles <N>                  Stevilo ciklov (privzeto: 1000)");
+        System.out.println("  --ui <true|false>             Graficni vmesnik (privzeto: true)");
+        System.out.println("  --window <W> <H>              Velikost okna (privzeto: 800 600)");
+        System.out.println("  --bounds <x1> <x2> <y1> <y2>  Meje prostora (privzeto: 0 800 0 600)");
+        System.out.println("  --fps <N>                     Hitrost izrisa (privzeto: 60)");
         System.out.println();
         System.out.println("Primeri:");
-        System.out.println("  java -jar ChargedParticles.jar --mode sequential --particles 100");
-        System.out.println("  java -jar ChargedParticles.jar --mode parallel --particles 500 --ui false");
+        System.out.println("  ./run_sequential.sh  --particles 1000 --cycles 2000 --ui false");
+        System.out.println("  ./run_parallel.sh    --particles 1000 --cycles 2000 --ui false");
+        System.out.println("  ./run_distributed.sh 4 --particles 1000 --cycles 2000 --ui false");
     }
 }

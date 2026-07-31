@@ -13,6 +13,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
+        <!-- MPJ Express je prilozen projektu v lib/mpj, zato dodatna namestitev ni potrebna.
+             Za lastno namestitev: mvn -Dmpj.home=/pot/do/mpj -->
+        <mpj.home>${project.basedir}/lib/mpj</mpj.home>
     </properties>
 
     <dependencies>
@@ -22,7 +25,7 @@
             <artifactId>mpj</artifactId>
             <version>0.44</version>
             <scope>system</scope>
-            <systemPath>/Users/gregorantonaz/mpj/lib/mpj.jar</systemPath>
+            <systemPath>${mpj.home}/lib/mpj.jar</systemPath>
         </dependency>
     </dependencies>
 

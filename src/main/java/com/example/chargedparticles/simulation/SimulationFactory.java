@@ -1,30 +1,31 @@
 package com.example.chargedparticles.simulation;
 
-/**
- * Factory za ustvarjanje simulacijskih instanc.
- */
-public class SimulationFactory {
+import com.example.chargedparticles.model.Particle;
+import java.util.List;
 
-    /**
-     * Ustvari simulacijo na podlagi izbranega nacina.
-     * @param mode nacin simulacije
-     * @return instanca simulacije
-     */
-    public static Simulation createSimulation(SimulationMode mode) {
-        switch (mode) {
-            case SEQUENTIAL:
-                return new SequentialSimulation();
-            case PARALLEL:
-                return new ParallelSimulation();
-            default:
-                throw new IllegalArgumentException("Neznan nacin simulacije: " + mode);
-        }
+/**
+ * Factory za ustvarjanje simulacij s skupnim pomnilnikom.
+ *
+ * Porazdeljene simulacije tu ni, ker potrebuje rang in stevilo MPI procesov;
+ * ustvari jo {@link com.example.chargedparticles.DistributedRunner}.
+ */
+public final class SimulationFactory {
+
+    private SimulationFactory() {
     }
 
-    /**
-     * Ustvari vzporedno simulacijo z dolocenim stevilom niti.
-     */
-    public static Simulation createParallelSimulation(int numThreads) {
-        return new ParallelSimulation(numThreads);
+    /** Ustvari simulacijo za izbrani nacin. */
+    public static Simulation createSimulation(SimulationMode mode,
+                                              List<Particle> particles,
+                                              SimulationParameters params) {
+        switch (mode) {
+            case SEQUENTIAL:
+                return new SequentialSimulation(particles, params);
+            case PARALLEL:
+                return new ParallelSimulation(particles, params);
+            default:
+                throw new IllegalArgumentException("Nacin " + mode
+                        + " se zazene z DistributedRunner in mpjrun.sh");
+        }
     }
 }
